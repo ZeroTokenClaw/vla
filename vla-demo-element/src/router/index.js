@@ -101,9 +101,29 @@ const router = createRouter({
         },
         {
           path: 'train',
-          name: 'train',
-          component: () => import('@/views/Placeholder.vue'),
+          component: () => import('@/views/train/TrainHub.vue'),
           meta: { title: '算法工场' },
+          children: [
+            { path: '', redirect: '/train/config' },
+            {
+              path: 'config',
+              name: 'train-config',
+              component: () => import('@/views/train/AlgoConfig.vue'),
+              meta: { title: '实验配置' },
+            },
+            {
+              path: 'runner/:id?',
+              name: 'train-runner',
+              component: () => import('@/views/train/TrainRunner.vue'),
+              meta: { title: '训练运行' },
+            },
+            {
+              path: 'metrics/:id?',
+              name: 'train-metrics',
+              component: () => import('@/views/train/MetricsPanel.vue'),
+              meta: { title: '指标报表' },
+            },
+          ],
         },
       ],
     },
