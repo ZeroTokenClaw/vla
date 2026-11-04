@@ -75,9 +75,29 @@ const router = createRouter({
         },
         {
           path: 'vla',
-          name: 'vla',
-          component: () => import('@/views/Placeholder.vue'),
+          component: () => import('@/views/vla/VlaHub.vue'),
           meta: { title: '具身采集标注' },
+          children: [
+            { path: '', redirect: '/vla/collect' },
+            {
+              path: 'collect',
+              name: 'vla-collect',
+              component: () => import('@/views/vla/CollectConfig.vue'),
+              meta: { title: '采集配置' },
+            },
+            {
+              path: 'timeline/:id?',
+              name: 'vla-timeline',
+              component: () => import('@/views/vla/TimelineAnnotate.vue'),
+              meta: { title: '时间轴标注' },
+            },
+            {
+              path: 'quality/:id?',
+              name: 'vla-quality',
+              component: () => import('@/views/vla/QualityGate.vue'),
+              meta: { title: '样本质检' },
+            },
+          ],
         },
         {
           path: 'train',
