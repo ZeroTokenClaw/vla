@@ -49,9 +49,29 @@ const router = createRouter({
         },
         {
           path: 'prelabel',
-          name: 'prelabel',
-          component: () => import('@/views/Placeholder.vue'),
+          component: () => import('@/views/prelabel/PrelabelHub.vue'),
           meta: { title: '智能预标' },
+          children: [
+            { path: '', redirect: '/prelabel/text' },
+            {
+              path: 'text/:id?',
+              name: 'prelabel-text',
+              component: () => import('@/views/prelabel/TextPrelabel.vue'),
+              meta: { title: '文本预标' },
+            },
+            {
+              path: 'vision/:id?',
+              name: 'prelabel-vision',
+              component: () => import('@/views/prelabel/VisionPrelabel.vue'),
+              meta: { title: '视觉预标' },
+            },
+            {
+              path: 'accept/:id?',
+              name: 'prelabel-accept',
+              component: () => import('@/views/prelabel/AcceptWizard.vue'),
+              meta: { title: '验收向导' },
+            },
+          ],
         },
         {
           path: 'vla',
