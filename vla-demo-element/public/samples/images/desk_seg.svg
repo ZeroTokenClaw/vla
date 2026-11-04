@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="480" viewBox="0 0 800 480">
+  <rect width="800" height="480" fill="#1f2937"/>
+  <rect x="40" y="280" width="720" height="160" fill="#4b5563" rx="8"/>
+  <ellipse cx="220" cy="250" rx="70" ry="28" fill="#1677ff" opacity="0.85"/>
+  <rect x="190" y="180" width="60" height="80" rx="8" fill="#1677ff"/>
+  <ellipse cx="420" cy="270" rx="110" ry="40" fill="#52c41a" opacity="0.8"/>
+  <path d="M560 120 C600 160, 620 200, 600 250 L540 240 C560 200, 550 160, 560 120Z" fill="#fa8c16" opacity="0.9"/>
+  <text x="40" y="40" fill="#e5e7eb" font-size="20" font-family="sans-serif">DataLink Sample · Semantic Seg (desk)</text>
+  <text x="40" y="68" fill="#9ca3af" font-size="14" font-family="sans-serif">脱敏样例 · cup / plate / hand / table</text>
+</svg>

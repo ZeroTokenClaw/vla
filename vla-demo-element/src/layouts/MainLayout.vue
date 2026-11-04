@@ -23,7 +23,14 @@ const menus = [
   { path: '/train', label: copy.modules.train, icon: Cpu },
 ]
 
-const active = computed(() => route.path)
+const active = computed(() => {
+  const p = route.path
+  if (p.startsWith('/qc')) return '/qc'
+  if (p.startsWith('/prelabel')) return '/prelabel'
+  if (p.startsWith('/vla')) return '/vla'
+  if (p.startsWith('/train')) return '/train'
+  return '/'
+})
 
 function go(path) {
   router.push(path)
@@ -41,6 +48,7 @@ function go(path) {
         </div>
       </div>
       <el-menu
+        :key="active"
         :default-active="active"
         class="dl-menu"
         background-color="#001529"
