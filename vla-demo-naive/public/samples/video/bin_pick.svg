@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="480" viewBox="0 0 800 480">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#374151"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="480" fill="url(#g)"/>
+  <rect x="60" y="300" width="680" height="80" fill="#6b7280" rx="4"/>
+  <rect x="120" y="180" width="120" height="100" fill="#f59e0b" stroke="#fbbf24" stroke-width="3"/>
+  <rect x="420" y="160" width="140" height="120" fill="#3b82f6" stroke="#60a5fa" stroke-width="3"/>
+  <rect x="300" y="120" width="50" height="140" fill="#a3e635" opacity="0.9"/>
+  <text x="40" y="40" fill="#e5e7eb" font-size="20" font-family="sans-serif">Bin picking · video detect frame mock</text>
+  <text x="40" y="68" fill="#9ca3af" font-size="14" font-family="sans-serif">box_A / box_B / gripper / conveyor</text>
+</svg>
