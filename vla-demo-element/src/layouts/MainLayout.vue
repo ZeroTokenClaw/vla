@@ -1,7 +1,9 @@
-﻿<script setup>
+<script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { copy } from '@/i18n/copy'
+import RoleSwitch from '@/components/RoleSwitch.vue'
+import AuditLogDrawer from '@/components/AuditLogDrawer.vue'
 import {
   Monitor,
   Checked,
@@ -59,8 +61,8 @@ function go(path) {
           <el-tag size="small" type="warning" effect="dark" class="dl-badge">{{ copy.envBadge }}</el-tag>
         </div>
         <div class="dl-header-right">
-          <el-tag type="info" effect="plain">{{ copy.roles.admin }}</el-tag>
-          <span class="dl-user">demo.admin</span>
+          <AuditLogDrawer />
+          <RoleSwitch />
         </div>
       </el-header>
       <el-main class="dl-main">
@@ -130,10 +132,6 @@ function go(path) {
 }
 .dl-badge {
   margin-left: 4px;
-}
-.dl-user {
-  color: #6b7280;
-  font-size: 13px;
 }
 .dl-main {
   padding: 20px;
