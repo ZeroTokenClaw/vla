@@ -82,7 +82,7 @@ export const VISION_IMAGES = [
   {
     id: 'DL-IMG-2026-001',
     title: '桌面抓取-铭牌 OCR + YOLO',
-    imageUrl: '/samples/images/desk_seg.svg',
+    imageUrl: '/samples/images/desk_seg.jpg',
     width: 640,
     height: 400,
     status: 'ready',
@@ -104,7 +104,7 @@ export const VISION_IMAGES = [
   {
     id: 'DL-IMG-2026-002',
     title: '料箱分拣-箱号 OCR + YOLO',
-    imageUrl: '/samples/images/desk_seg.svg',
+    imageUrl: '/samples/images/desk_grasp.jpg',
     width: 640,
     height: 400,
     status: 'ready',

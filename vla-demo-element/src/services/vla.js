@@ -98,8 +98,8 @@ export async function createCollectTask(config) {
     instruction:
       config.instruction?.trim() ||
       `采集任务「${config.name.trim()}」：按所选动作模板完成示范并标注起止帧。`,
-    imageUrl: '/samples/video/bin_pick.svg',
-    videoUrl: '/samples/video/bin_pick.svg',
+    imageUrl: '/samples/video/bin_pick_poster.jpg',
+    videoUrl: '/samples/video/bin_pick.mp4',
     fps: 10,
     totalFrames: 100,
     durationSec: 10,

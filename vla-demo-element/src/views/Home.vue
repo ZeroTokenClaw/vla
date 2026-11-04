@@ -1,5 +1,17 @@
-﻿<script setup>
+<script setup>
+import { useRouter } from 'vue-router'
 import { copy } from '@/i18n/copy'
+
+const router = useRouter()
+const modulePath = {
+  [copy.modules.qc]: '/qc',
+  [copy.modules.prelabel]: '/prelabel',
+  [copy.modules.vla]: '/vla',
+  [copy.modules.train]: '/train',
+}
+function openTicket(row) {
+  router.push(modulePath[row.module] || '/')
+}
 
 const tickets = [
   {
@@ -39,7 +51,8 @@ const tickets = [
       <el-button type="primary">新建工单</el-button>
     </div>
     <el-card shadow="never">
-      <el-table :data="tickets" stripe style="width: 100%">
+      <el-empty v-if="!tickets.length" description="暂无待办工单" />
+      <el-table v-else :data="tickets" stripe style="width: 100%">
         <el-table-column prop="id" label="工单号" min-width="180" />
         <el-table-column prop="title" label="标题" min-width="200" />
         <el-table-column prop="module" label="所属模块" width="140" />
@@ -53,8 +66,8 @@ const tickets = [
         <el-table-column prop="status" label="状态" width="100" />
         <el-table-column prop="assignee" label="处理人" width="100" />
         <el-table-column label="操作" width="120">
-          <template #default>
-            <el-button link type="primary">打开</el-button>
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openTicket(row)">打开</el-button>
           </template>
         </el-table-column>
       </el-table>

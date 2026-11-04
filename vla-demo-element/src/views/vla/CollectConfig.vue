@@ -21,6 +21,7 @@ const meta = reactive({
   personnel: [],
 })
 
+const formRef = ref()
 const form = reactive({
   name: '',
   scene: '',
@@ -30,6 +31,15 @@ const form = reactive({
   personnelIds: [],
   instruction: '',
 })
+
+const formRules = {
+  name: [{ required: true, message: '请填写任务名称', trigger: 'blur' }],
+  scene: [{ required: true, message: '请选择场景信息', trigger: 'change' }],
+  plan: [{ required: true, message: '请选择采集方案', trigger: 'change' }],
+  mode: [{ required: true, message: '请选择采集模式', trigger: 'change' }],
+  actionTemplateIds: [{ type: 'array', required: true, min: 1, message: '请选择动作模板', trigger: 'change' }],
+  personnelIds: [{ type: 'array', required: true, min: 1, message: '请配置采集人员', trigger: 'change' }],
+}
 
 async function refresh() {
   loading.value = true
@@ -43,12 +53,11 @@ async function refresh() {
 }
 
 async function onSubmit() {
-  if (!form.name.trim()) return ElMessage.warning('请填写任务名称')
-  if (!form.scene) return ElMessage.warning('请选择场景信息')
-  if (!form.plan) return ElMessage.warning('请选择采集方案')
-  if (!form.mode) return ElMessage.warning('请选择采集模式')
-  if (!form.actionTemplateIds.length) return ElMessage.warning('请选择动作模板')
-  if (!form.personnelIds.length) return ElMessage.warning('请配置采集人员')
+  const ok = await formRef.value?.validate().catch(() => false)
+  if (!ok) {
+    ElMessage.error('请先完整填写必填项（红色校验提示）')
+    return
+  }
 
   saving.value = true
   try {
@@ -94,11 +103,11 @@ onMounted(refresh)
             </div>
           </template>
 
-          <el-form label-width="100px" label-position="right">
-            <el-form-item label="任务名称" required>
+          <el-form ref="formRef" :model="form" :rules="formRules" label-width="100px" label-position="right">
+            <el-form-item label="任务名称" prop="name">
               <el-input v-model="form.name" maxlength="40" placeholder="例如：仓拣-红盒抓取放置" />
             </el-form-item>
-            <el-form-item label="场景信息" required>
+            <el-form-item label="场景信息" prop="scene">
               <el-select v-model="form.scene" placeholder="选择场景" style="width: 100%">
                 <el-option
                   v-for="s in meta.scenes"
@@ -108,7 +117,7 @@ onMounted(refresh)
                 />
               </el-select>
             </el-form-item>
-            <el-form-item label="采集方案" required>
+            <el-form-item label="采集方案" prop="plan">
               <el-select v-model="form.plan" placeholder="选择方案" style="width: 100%">
                 <el-option
                   v-for="p in meta.plans"
@@ -118,14 +127,14 @@ onMounted(refresh)
                 />
               </el-select>
             </el-form-item>
-            <el-form-item label="采集模式" required>
+            <el-form-item label="采集模式" prop="mode">
               <el-radio-group v-model="form.mode">
                 <el-radio v-for="m in meta.modes" :key="m.value" :value="m.value">
                   {{ m.label }}
                 </el-radio>
               </el-radio-group>
             </el-form-item>
-            <el-form-item label="动作模板" required>
+            <el-form-item label="动作模板" prop="actionTemplateIds">
               <el-select
                 v-model="form.actionTemplateIds"
                 multiple
@@ -142,7 +151,7 @@ onMounted(refresh)
                 />
               </el-select>
             </el-form-item>
-            <el-form-item label="人员配置" required>
+            <el-form-item label="人员配置" prop="personnelIds">
               <el-select
                 v-model="form.personnelIds"
                 multiple
@@ -185,7 +194,8 @@ onMounted(refresh)
             </div>
           </template>
 
-          <el-table :data="tasks" stripe size="small" empty-text="暂无采集任务">
+          <el-empty v-if="!tasks.length && !loading" description="暂无采集任务，请先创建" :image-size="72" />
+          <el-table v-else :data="tasks" stripe size="small" empty-text="暂无采集任务">
             <el-table-column prop="id" label="任务号" min-width="150" />
             <el-table-column prop="name" label="名称" min-width="140" show-overflow-tooltip />
             <el-table-column label="场景" width="100">

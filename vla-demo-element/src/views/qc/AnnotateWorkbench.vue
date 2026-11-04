@@ -300,7 +300,14 @@ const highlightedText = computed(() => {
 
         <!-- audio -->
         <div v-else-if="modalityPreview === 'audio_slice'" class="canvas audio-canvas">
-          <img :src="resource.audioUrl" alt="waveform" class="wave" />
+          <img :src="resource.waveformUrl || resource.audioUrl" alt="waveform" class="wave" />
+          <audio
+            v-if="resource.audioUrl && String(resource.audioUrl).endsWith('.wav')"
+            class="audio-player"
+            :src="resource.audioUrl"
+            controls
+            preload="metadata"
+          />
           <div class="timeline">
             <div
               v-for="s in draftLabels"
@@ -321,7 +328,15 @@ const highlightedText = computed(() => {
         <!-- video -->
         <div v-else-if="modalityPreview === 'video_det'" class="canvas video-canvas">
           <div class="img-wrap">
-            <img :src="resource.posterUrl" alt="video" />
+            <video
+              v-if="resource.videoUrl && String(resource.videoUrl).endsWith('.mp4')"
+              class="media-video"
+              :src="resource.videoUrl"
+              :poster="resource.posterUrl"
+              controls
+              preload="metadata"
+            />
+            <img v-else :src="resource.posterUrl" alt="video" />
             <div
               v-for="d in draftLabels"
               :key="d.id"
@@ -494,6 +509,16 @@ const highlightedText = computed(() => {
   padding: 2px 4px;
   box-sizing: border-box;
   pointer-events: none;
+}
+.audio-player {
+  width: 100%;
+  margin: 8px 0 4px;
+}
+.media-video {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  background: #0f172a;
 }
 .wave {
   width: 100%;

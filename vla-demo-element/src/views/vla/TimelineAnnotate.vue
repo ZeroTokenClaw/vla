@@ -47,7 +47,8 @@ const frameMarks = computed(() => {
   }))
 })
 
-const linkedImage = computed(() => task.value?.imageUrl || '/samples/video/bin_pick.svg')
+const linkedImage = computed(() => task.value?.imageUrl || '/samples/video/bin_pick_poster.jpg')
+const linkedVideo = computed(() => task.value?.videoUrl || '/samples/video/bin_pick.mp4')
 
 const currentActionHint = computed(() => {
   if (!task.value) return null
@@ -111,6 +112,14 @@ function setEndHere() {
 
 async function onSaveSpan() {
   if (!task.value) return
+  if (draft.endFrame <= draft.startFrame) {
+    ElMessage.error('结束帧必须大于起始帧')
+    return
+  }
+  if (!draft.action) {
+    ElMessage.error('请选择动作类型')
+    return
+  }
   saving.value = true
   try {
     task.value = await saveActionSpan({
@@ -233,7 +242,15 @@ onMounted(async () => {
       <el-card shadow="never" class="player-card">
         <div class="player">
           <div class="frame-stage">
-            <img :src="task.videoUrl" alt="采集视频帧占位" />
+            <video
+              v-if="linkedVideo.endsWith('.mp4')"
+              class="media-video"
+              :src="linkedVideo"
+              :poster="linkedImage"
+              controls
+              preload="metadata"
+            />
+            <img v-else :src="linkedImage" alt="采集视频帧占位" />
             <div class="frame-overlay">
               <div class="frame-badge">FRAME {{ currentFrame }} / {{ task.totalFrames }}</div>
               <div class="frame-note">
@@ -433,6 +450,13 @@ onMounted(async () => {
   border-radius: 8px;
   overflow: hidden;
   background: #0f172a;
+}
+.media-video {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  background: #0f172a;
+  border-radius: 6px;
 }
 .frame-stage img {
   width: 100%;

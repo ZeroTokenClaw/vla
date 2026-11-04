@@ -128,7 +128,8 @@ defineExpose({ openCreate: () => { createVisible.value = true } })
     </el-card>
 
     <el-card shadow="never">
-      <el-table :data="tasks" v-loading="loading" stripe>
+      <el-empty v-if="!tasks?.length && !loading" description="暂无质控工单" :image-size="72" />
+    <el-table v-show="tasks?.length"  :data="tasks" v-loading="loading" stripe>
         <el-table-column prop="id" label="工单号" min-width="160" fixed />
         <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip />
         <el-table-column label="模态" width="120">

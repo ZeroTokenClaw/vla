@@ -1,4 +1,4 @@
-﻿export const copy = {
+export const copy = {
   productName: '数联标注云 DataLink Label',
   productShort: '数联标注云',
   vendor: '数联科技',

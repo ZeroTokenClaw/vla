@@ -63,7 +63,7 @@ export const SAMPLE_RESOURCES = {
   seg: {
     id: 'res-img-01',
     title: '桌面抓取场景-语义分割',
-    imageUrl: '/samples/images/desk_seg.svg',
+    imageUrl: '/samples/images/desk_seg.jpg',
     masks: [
       { id: 'm1', label: 'cup', color: '#1677ff', area: 0.12, conf: 0.93 },
       { id: 'm2', label: 'plate', color: '#52c41a', area: 0.18, conf: 0.91 },
@@ -75,21 +75,22 @@ export const SAMPLE_RESOURCES = {
   audio_slice: {
     id: 'res-audio-01',
     title: '指令语音-切片样例',
-    audioUrl: '/samples/audio/instruction.svg',
-    durationSec: 12.6,
+    audioUrl: '/samples/audio/instruction.wav',
+    waveformUrl: '/samples/audio/instruction_wave.png',
+    durationSec: 4.7,
     slices: [
-      { id: 's1', start: 0.4, end: 2.1, label: '唤醒词', text: '你好数联' },
-      { id: 's2', start: 2.3, end: 5.8, label: '任务指令', text: '请把红色杯子放到托盘上' },
-      { id: 's3', start: 6.2, end: 8.0, label: '确认', text: '是的，红色那个' },
-      { id: 's4', start: 9.1, end: 11.5, label: '结束语', text: '完成后来告诉我' },
+      { id: 's1', start: 0.2, end: 1.0, label: '唤醒词', text: '你好数联' },
+      { id: 's2', start: 1.1, end: 2.6, label: '任务指令', text: '请把红色杯子放到托盘上' },
+      { id: 's3', start: 2.7, end: 3.4, label: '确认', text: '是的，红色那个' },
+      { id: 's4', start: 3.6, end: 4.5, label: '结束语', text: '完成后来告诉我' },
     ],
     labelSet: ['唤醒词', '任务指令', '确认', '结束语', '噪声', '其他'],
   },
   video_det: {
     id: 'res-video-01',
     title: '料箱分拣-目标检测',
-    posterUrl: '/samples/video/bin_pick.svg',
-    videoUrl: '/samples/video/bin_pick.svg',
+    posterUrl: '/samples/video/bin_pick_poster.jpg',
+    videoUrl: '/samples/video/bin_pick.mp4',
     fps: 30,
     frames: 180,
     detections: [
@@ -103,7 +104,7 @@ export const SAMPLE_RESOURCES = {
   point_seg: {
     id: 'res-pc-01',
     title: '桌面点云分割预览',
-    previewUrl: '/samples/pointcloud/desk_pc.svg',
+    previewUrl: '/samples/pointcloud/desk_pc.png',
     points: 128460,
     segments: [
       { id: 'p1', label: 'table_plane', points: 62400, color: '#13c2c2' },
