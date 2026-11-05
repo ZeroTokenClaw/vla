@@ -15,6 +15,9 @@ const route = useRoute()
 const router = useRouter()
 
 const list = ref([])
+const total = ref(0)
+const page = ref(1)
+const pageSize = ref(10)
 const image = ref(null)
 const loading = ref(false)
 const runningOcr = ref(false)
@@ -29,7 +32,11 @@ const yoloDraft = ref([])
 const currentId = computed(() => route.params.id)
 
 async function loadList() {
-  list.value = await listVisionImages()
+  const res = await listVisionImages({ page: page.value, pageSize: pageSize.value })
+    list.value = res.items
+    total.value = res.total
+    page.value = res.page
+    pageSize.value = res.pageSize
 }
 
 async function loadImage(id) {
@@ -273,6 +280,9 @@ const showYolo = computed(() => layer.value === 'yolo' || layer.value === 'both'
       </a-col>
     </a-row>
   </div>
+  <div class="pager">
+    <a-pagination v-model:current="page" v-model:page-size="pageSize" :total="total" show-total show-page-size :page-size-options="[10,20,50]" />
+  </div>
 </template>
 
 <style scoped>
@@ -403,4 +413,5 @@ const showYolo = computed(() => layer.value === 'yolo' || layer.value === 'both'
   color: #6b7280;
   min-width: 36px;
 }
+.pager { display:flex; justify-content:flex-end; margin-top:12px; }
 </style>

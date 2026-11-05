@@ -33,7 +33,7 @@ const canFinalAccept = computed(() => ['reviewer', 'admin'].includes(auth.role))
 const currentStepMeta = computed(() => ACCEPT_STEPS[activeStepIndex.value] || ACCEPT_STEPS[0])
 
 async function loadList() {
-  jobs.value = await listAcceptJobs()
+  jobs.value = (await listAcceptJobs({ page: 1, pageSize: 200 })).items
 }
 
 async function loadJob(id) {

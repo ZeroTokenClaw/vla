@@ -1,6 +1,7 @@
+import { seedTextDocs, seedVisionImages, seedAcceptJobs } from './seed/prelabel'
 /** StarCompute 智能预标 mock：文本管线、OCR/YOLO、验收向导。故意植入可修正错误便于 Diff 演示。 */
 
-export const TEXT_DOCS = [
+const TEXT_HAND = [
   {
     id: 'SC-TXT-2026-001',
     title: '客服工单-物流改派（脱敏）',
@@ -78,7 +79,7 @@ export const ENTITY_TYPES = ['PERSON', 'DATE', 'ORDER_ID', 'ADDRESS', 'PHONE', '
 export const RELATION_TYPES = ['COMPLAINS_ABOUT', 'SHIPS_TO', 'RETURN_TO', 'PLACE_ON', 'AVOID', 'LOCATED_AT']
 export const CLASS_LABELS = ['投诉-物流延误', '投诉-包裹破损', '咨询-进度', '具身-抓取放置', '其他']
 
-export const VISION_IMAGES = [
+const VISION_HAND = [
   {
     id: 'SC-IMG-2026-001',
     title: '桌面抓取-铭牌 OCR + YOLO',
@@ -122,6 +123,18 @@ export const VISION_IMAGES = [
   },
 ]
 
+export const TEXT_DOCS = (() => {
+  try { return seedTextDocs(TEXT_HAND) } catch (e) {
+    console.error('[starcompute] text seed failed', e); return TEXT_HAND
+  }
+})()
+
+export const VISION_IMAGES = (() => {
+  try { return seedVisionImages(VISION_HAND) } catch (e) {
+    console.error('[starcompute] vision seed failed', e); return VISION_HAND
+  }
+})()
+
 export const ACCEPT_STEPS = [
   { key: 'confirm', label: '确认预标', desc: '核对模型结果与样例匹配度，确认进入精标' },
   { key: 'annotate', label: '人工精标', desc: '完成漏标补标、错标修正与结构化核对' },
@@ -130,7 +143,7 @@ export const ACCEPT_STEPS = [
 ]
 
 export function createAcceptJobs() {
-  return [
+  const hand = [
     {
       id: 'SC-ACC-2026-001',
       title: '文本预标验收 · 客服工单批次',
@@ -168,4 +181,10 @@ export function createAcceptJobs() {
       status: 'in_progress',
     },
   ]
+  try {
+    return seedAcceptJobs(hand)
+  } catch (e) {
+    console.error('[starcompute] accept seed failed', e)
+    return hand
+  }
 }

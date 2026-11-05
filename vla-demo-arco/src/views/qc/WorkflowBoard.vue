@@ -51,7 +51,7 @@ async function load() {
   loading.value = true
   try {
     Object.assign(meta, listMeta())
-    tasks.value = await listQcTasks()
+    tasks.value = (await listQcTasks({ page: 1, pageSize: 200 })).items
   } finally {
     loading.value = false
   }
@@ -100,7 +100,7 @@ async function quickStart(t) {
         // after assign may need second hop — reload then start
       }
     }
-    const latest = (await listQcTasks()).find((x) => x.id === t.id)
+    const latest = (await listQcTasks({ page: 1, pageSize: 200 })).items.find((x) => x.id === t.id)
     if (latest?.status === 'assigned') await transition(latest.id, 'annotating', '开始标注')
     if (latest?.status === 'rejected') await transition(latest.id, 'annotating', '驳回后重标')
     Message.success('已更新状态')
@@ -120,7 +120,7 @@ async function submitReview(t) {
   busy.value = true
   try {
     if (t.status === 'assigned') await transition(t.id, 'annotating')
-    const cur = (await listQcTasks()).find((x) => x.id === t.id) || t
+    const cur = (await listQcTasks({ page: 1, pageSize: 200 })).items.find((x) => x.id === t.id) || t
     if (cur.status === 'annotating') await transition(cur.id, 'reviewing', '提交初审')
     Message.success('已提交初审')
     await load()

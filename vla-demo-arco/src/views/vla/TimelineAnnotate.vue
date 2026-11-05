@@ -60,7 +60,7 @@ const currentActionHint = computed(() => {
 })
 
 async function loadList() {
-  taskList.value = await listVlaTasks()
+  taskList.value = (await listVlaTasks({ page: 1, pageSize: 200 })).items
 }
 
 async function loadTask(id) {

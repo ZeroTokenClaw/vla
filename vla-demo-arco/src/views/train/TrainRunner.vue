@@ -40,7 +40,7 @@ function gpuNames(ids) {
 }
 
 async function loadList() {
-  experiments.value = await listExperiments()
+  experiments.value = (await listExperiments({ page: 1, pageSize: 200 })).items
   meta.value = listMeta()
 }
 
@@ -253,7 +253,7 @@ async function toggleAugmentDisplay() {
           <h4>运行日志</h4>
           <a-timeline class="logs">
             <a-timeline-item
-              v-for="(log, idx) in [...(exp.logs || [])].reverse()"
+              v-for="(log, idx) in [...(exp.trainLog || [])].reverse()"
               :key="idx"
               :label="log.at"
               :type="log.level === 'success' ? 'success' : log.level === 'warning' ? 'warning' : 'primary'"

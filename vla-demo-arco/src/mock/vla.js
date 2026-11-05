@@ -1,3 +1,4 @@
+import { seedVlaEpisodes } from './seed/vla'
 /** StarCompute 具身采集标注 mock：采集任务、动作模板、时间轴片段、质检问题。 */
 
 export const COLLECT_MODES = [
@@ -8,10 +9,10 @@ export const COLLECT_MODES = [
 ]
 
 export const SCENE_OPTIONS = [
-  { value: 'kitchen_counter', label: '厨房台面' },
-  { value: 'lab_bench', label: '实验台' },
-  { value: 'warehouse_bin', label: '仓拣料箱' },
-  { value: 'office_desk', label: '办公桌面' },
+  { value: 'pack_station', label: '打包工位' },
+  { value: 'chem_hood', label: '化学通风橱' },
+  { value: 'sku_cage', label: 'SKU 笼车' },
+  { value: 'sit_stand', label: '升降工位' },
 ]
 
 export const PLAN_OPTIONS = [
@@ -41,7 +42,7 @@ export const ISSUE_TYPES = [
 ]
 
 /** Seed collect tasks with linked multimodal assets + action spans. */
-export const VLA_TASKS = [
+const VLA_HAND = [
   {
     id: 'SC-VLA-2026-001',
     name: '仓拣-红盒抓取放置',
@@ -276,6 +277,17 @@ export const VLA_TASKS = [
     ],
   },
 ]
+
+function buildVlaTasks() {
+  try {
+    return seedVlaEpisodes(VLA_HAND)
+  } catch (e) {
+    console.error('[starcompute] vla seed failed, fallback thin', e)
+    return VLA_HAND.map((t) => ({ ...t, stream: t.stream || { joints: [], eeOpen: [], stamp: [], hz: 10 } }))
+  }
+}
+
+export const VLA_TASKS = buildVlaTasks()
 
 export function nextVlaId(seq) {
   const n = String(seq).padStart(3, '0')

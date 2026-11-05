@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
 import { businessDelay } from './delay'
+import { paginate } from '@/mock/seed/paginate'
 import { pushAudit } from '@/stores/audit'
 import { useAuthStore } from '@/stores/auth'
 import { exportCSV, exportExcel } from '@/utils/exportFiles'
@@ -58,9 +59,10 @@ export function listMeta() {
   }
 }
 
-export async function listExperiments() {
+export async function listExperiments(query = {}) {
   await businessDelay()
-  return state.experiments.map((e) => ({
+  const { page, pageSize, status, algorithm, keyword } = query
+  let rows = state.experiments.map((e) => ({
     id: e.id,
     name: e.name,
     algorithm: e.algorithm,
@@ -75,7 +77,16 @@ export async function listExperiments() {
     currentEpoch: e.currentEpoch,
     createdAt: e.createdAt,
     metricLen: e.metrics.loss.length,
+    corporaCount: e.repos?.length || 0,
+    snapshotCount: e.weights?.length || 0,
   }))
+  if (status) rows = rows.filter((e) => e.status === status)
+  if (algorithm) rows = rows.filter((e) => e.algorithm === algorithm)
+  if (keyword) {
+    const kw = String(keyword).trim()
+    rows = rows.filter((e) => e.id.includes(kw) || e.name.includes(kw))
+  }
+  return paginate(rows, { page, pageSize })
 }
 
 export async function getExperiment(expId) {
@@ -120,7 +131,13 @@ export async function createExperiment(cfg) {
     createdAt: now(),
     startedAt: null,
     finishedAt: null,
-    logs: [{ at: now(), level: 'info', message: '实验已创建' }],
+    trainLog: [{ at: now(), level: 'info', message: '实验已创建' }],
+    repos: [
+      { id: `CAT-SC-new-tr`, name: '待绑定训练集', part: 'train', tag: 'draft', sampleCount: 0 },
+    ],
+    weights: [],
+    evalSheet: [],
+    errorGrid: [],
     metrics: { loss: [], acc: [], map: [] },
   }
 
@@ -135,7 +152,7 @@ export async function createExperiment(cfg) {
       card.free = false
     }
     const names = gpuIds.map((id) => state.gpus.find((g) => g.id === id)?.name || id).join(', ')
-    exp.logs.push({ at: now(), level: 'info', message: `创建时分配 GPU：${names}` })
+    exp.trainLog.push({ at: now(), level: 'info', message: `创建时分配 GPU：${names}` })
   }
 
   state.experiments.unshift(exp)
@@ -178,7 +195,7 @@ export async function allocateGpu(expId, gpuIds) {
   exp.gpuIds = [...gpuIds]
   if (exp.status === 'draft') exp.status = 'ready'
   const names = gpuIds.map((id) => state.gpus.find((g) => g.id === id)?.name || id).join(', ')
-  exp.logs.push({ at: now(), level: 'info', message: `分配 GPU：${names}` })
+  exp.trainLog.push({ at: now(), level: 'info', message: `分配 GPU：${names}` })
   pushAudit({ action: '分配训练 GPU', detail: `${expId} · ${names}` })
   return clone(exp)
 }
@@ -198,7 +215,7 @@ export async function startTrain(expId) {
   }
   exp.status = 'running'
   exp.startedAt = now()
-  exp.logs.push({
+  exp.trainLog.push({
     at: now(),
     level: 'info',
     message: `开始训练 · epoch 目标 ${exp.epochs} · 增强 ${exp.augment ? '开' : '关'}`,
@@ -215,7 +232,7 @@ export async function stopTrain(expId) {
   if (exp.status !== 'running') throw new Error('当前不在运行状态')
   exp.status = exp.currentEpoch >= exp.epochs ? 'finished' : 'stopped'
   if (exp.status === 'finished') exp.finishedAt = now()
-  exp.logs.push({
+  exp.trainLog.push({
     at: now(),
     level: 'warning',
     message: `手动停止 · 已完成 epoch ${exp.currentEpoch}/${exp.epochs}`,
@@ -247,7 +264,7 @@ export async function tickEpoch(expId) {
   exp.metrics.loss.push(point.loss)
   exp.metrics.acc.push(point.acc)
   exp.metrics.map.push(point.map)
-  exp.logs.push({
+  exp.trainLog.push({
     at: now(),
     level: 'info',
     message: `epoch ${next}/${exp.epochs} · loss=${point.loss} acc=${point.acc} mAP=${point.map}`,
@@ -257,7 +274,7 @@ export async function tickEpoch(expId) {
   if (next >= exp.epochs) {
     exp.status = 'finished'
     exp.finishedAt = now()
-    exp.logs.push({ at: now(), level: 'success', message: `训练完成 epoch ${next}/${exp.epochs}` })
+    exp.trainLog.push({ at: now(), level: 'success', message: `训练完成 epoch ${next}/${exp.epochs}` })
     done = true
     pushAudit({ action: '训练完成', detail: `${expId} · ${next} epochs` })
   }

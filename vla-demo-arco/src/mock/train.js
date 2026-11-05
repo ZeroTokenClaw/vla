@@ -1,3 +1,4 @@
+import { seedExperiments } from './seed/train'
 /** StarCompute 算法工场 mock：算法版本、模型、GPU 卡、实验种子 */
 
 export const ALGORITHMS = [
@@ -43,7 +44,7 @@ function series(n, start, end, noise = 0.02) {
 }
 
 /** Seed experiments with SC-EXP- prefix */
-export const EXPERIMENTS = [
+const EXP_HAND = [
   {
     id: 'SC-EXP-2026-001',
     name: '仓拣 VLA 策略-基线',
@@ -116,6 +117,24 @@ export const EXPERIMENTS = [
     metrics: { loss: [], acc: [], map: [] },
   },
 ]
+
+function buildExperiments() {
+  try {
+    return seedExperiments(EXP_HAND)
+  } catch (e) {
+    console.error('[starcompute] train seed failed, fallback thin', e)
+    return EXP_HAND.map((e) => ({
+      ...e,
+      repos: e.repos || [],
+      weights: e.weights || [],
+      evalSheet: e.evalSheet || [],
+      errorGrid: e.errorGrid || [],
+      trainLog: e.trainLog || e.logs || [],
+    }))
+  }
+}
+
+export const EXPERIMENTS = buildExperiments()
 
 export function nextExpId(seq) {
   const n = String(seq).padStart(3, '0')

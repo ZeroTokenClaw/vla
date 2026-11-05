@@ -15,6 +15,9 @@ const route = useRoute()
 const router = useRouter()
 
 const docs = ref([])
+const total = ref(0)
+const page = ref(1)
+const pageSize = ref(10)
 const doc = ref(null)
 const loading = ref(false)
 const running = ref(false)
@@ -33,7 +36,11 @@ const draft = ref({
 const currentId = computed(() => route.params.id)
 
 async function loadList() {
-  docs.value = await listTextDocs()
+  const res = await listTextDocs({ page: page.value, pageSize: pageSize.value })
+    docs.value = res.items
+    total.value = res.total
+    page.value = res.page
+    pageSize.value = res.pageSize
 }
 
 async function loadDoc(id) {
@@ -261,6 +268,9 @@ function fieldClass(name) {
       </a-col>
     </a-row>
   </div>
+  <div class="pager">
+    <a-pagination v-model:current="page" v-model:page-size="pageSize" :total="total" show-total show-page-size :page-size-options="[10,20,50]" />
+  </div>
 </template>
 
 <style scoped>
@@ -363,4 +373,5 @@ function fieldClass(name) {
   margin-bottom: 6px;
   flex-wrap: wrap;
 }
+.pager { display:flex; justify-content:flex-end; margin-top:12px; }
 </style>

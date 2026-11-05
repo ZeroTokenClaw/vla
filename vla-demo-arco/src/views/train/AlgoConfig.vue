@@ -19,6 +19,10 @@ const loading = ref(false)
 const saving = ref(false)
 const allocating = ref(false)
 const experiments = ref([])
+const total = ref(0)
+const page = ref(1)
+const pageSize = ref(10)
+const listFilters = reactive({ keyword: '', status: '', algorithm: '' })
 const meta = reactive({
   algorithms: [],
   models: [],
@@ -69,7 +73,11 @@ async function refresh() {
   loading.value = true
   try {
     Object.assign(meta, listMeta())
-    experiments.value = await listExperiments()
+    const res = await listExperiments({ ...listFilters, page: page.value, pageSize: pageSize.value })
+    experiments.value = res.items
+    total.value = res.total
+    page.value = res.page
+    pageSize.value = res.pageSize
   } finally {
     loading.value = false
   }
@@ -149,9 +157,17 @@ function statusType(s) {
 }
 
 onMounted(refresh)
+watch([page, pageSize], refresh)
 const scTableCols1 = [
-  
+  { title: '实验号', dataIndex: 'id', width: 150 },
+  { title: '名称', dataIndex: 'name', width: 160, ellipsis: true },
+  { title: '算法', dataIndex: 'algorithm', width: 120 },
+  { title: '模型', dataIndex: 'model', width: 120 },
+  { title: '状态', dataIndex: 'status', width: 90 },
+  { title: 'Epoch', slotName: 'epoch', width: 100 },
+  { title: '创建时间', dataIndex: 'createdAt', width: 160 },
 ]
+function onListSearch() { page.value = 1; refresh() }
 </script>
 
 <template>
@@ -310,7 +326,25 @@ const scTableCols1 = [
               <span type="info" size="small">前缀 SC-EXP-</span>
             </div>
           </template>
-          <a-table :columns="scTableCols1" :data="experiments" row-key="id" :pagination="false" size="small"></a-table>
+          <div class="list-filters">
+            <a-input v-model="listFilters.keyword" allow-clear placeholder="关键字" style="width: 140px; margin-right: 8px" />
+            <a-select v-model="listFilters.status" allow-clear placeholder="状态" style="width: 120px; margin-right: 8px">
+              <a-option value="draft" label="draft" />
+              <a-option value="ready" label="ready" />
+              <a-option value="running" label="running" />
+              <a-option value="finished" label="finished" />
+            </a-select>
+            <a-select v-model="listFilters.algorithm" allow-clear placeholder="算法" style="width: 160px; margin-right: 8px">
+              <a-option v-for="a in meta.algorithms" :key="a.value" :label="a.label" :value="a.value" />
+            </a-select>
+            <a-button type="primary" size="small" @click="onListSearch">查询</a-button>
+          </div>
+          <a-table :columns="scTableCols1" :data="experiments" row-key="id" :pagination="false" size="small">
+            <template #epoch="{ record }">{{ record.currentEpoch }}/{{ record.epochs }}</template>
+          </a-table>
+          <div class="pager">
+            <a-pagination v-model:current="page" v-model:page-size="pageSize" :total="total" show-total show-page-size :page-size-options="[10,20,50]" />
+          </div>
         </a-card>
       </a-col>
     </a-row>
@@ -329,4 +363,6 @@ const scTableCols1 = [
   align-items: center;
   justify-content: space-between;
 }
+.list-filters { margin-bottom: 8px; display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.pager { display:flex; justify-content:flex-end; margin-top:12px; }
 </style>

@@ -1,6 +1,6 @@
 <script setup>
 import { Message } from '@/ui/discrete'
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ProgressMock from '@/components/ProgressMock.vue'
 import {
@@ -13,6 +13,10 @@ const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
 const tasks = ref([])
+const total = ref(0)
+const page = ref(1)
+const pageSize = ref(10)
+const filters = reactive({ keyword: '', status: '', scene: '' })
 const meta = reactive({
   modes: [],
   scenes: [],
@@ -46,10 +50,19 @@ async function refresh() {
   try {
     const m = listMeta()
     Object.assign(meta, m)
-    tasks.value = await listVlaTasks()
+    const res = await listVlaTasks({ ...filters, page: page.value, pageSize: pageSize.value })
+    tasks.value = res.items
+    total.value = res.total
+    page.value = res.page
+    pageSize.value = res.pageSize
   } finally {
     loading.value = false
   }
+}
+
+async function onSearch() {
+  page.value = 1
+  await refresh()
 }
 
 async function onSubmit() {
@@ -89,8 +102,15 @@ function labelOf(list, value) {
 }
 
 onMounted(refresh)
+watch([page, pageSize], refresh)
 const scTableCols1 = [
-  
+  { title: '任务号', dataIndex: 'id', width: 160 },
+  { title: '名称', dataIndex: 'name', width: 160, ellipsis: true },
+  { title: '场景', slotName: 'scene', width: 120 },
+  { title: '方案', dataIndex: 'plan', width: 120 },
+  { title: '模式', dataIndex: 'mode', width: 100 },
+  { title: '状态', dataIndex: 'status', width: 100 },
+  { title: '操作', slotName: 'ops', width: 180 },
 ]
 </script>
 
@@ -165,7 +185,7 @@ const scTableCols1 = [
                 <a-option
                   v-for="u in meta.personnel"
                   :key="u.id"
-                  :label="`${u.name} · ${u.dept}`"
+                  :label="`${u.name} · ${u.pool}`"
                   :value="u.id"
                 />
               </a-select>
@@ -198,7 +218,30 @@ const scTableCols1 = [
           </template>
 
           <a-empty v-if="!tasks.length && !loading" description="暂无采集任务，请先创建" />
-          <a-table :columns="scTableCols1" :data="tasks" row-key="id" :pagination="false" size="small"></a-table>
+          <div class="list-filters">
+            <a-input v-model="filters.keyword" allow-clear placeholder="关键字" style="width: 140px; margin-right: 8px" />
+            <a-select v-model="filters.scene" allow-clear placeholder="场景" style="width: 140px; margin-right: 8px">
+              <a-option v-for="s in meta.scenes" :key="s.value" :label="s.label" :value="s.value" />
+            </a-select>
+            <a-select v-model="filters.status" allow-clear placeholder="状态" style="width: 120px; margin-right: 8px">
+              <a-option value="ready" label="ready" />
+              <a-option value="annotating" label="annotating" />
+              <a-option value="done" label="done" />
+            </a-select>
+            <a-button type="primary" size="small" @click="onSearch">查询</a-button>
+          </div>
+          <a-table :columns="scTableCols1" :data="tasks" row-key="id" :pagination="false" size="small">
+            <template #scene="{ record }">{{ labelOf(meta.scenes, record.scene) }}</template>
+            <template #ops="{ record }">
+              <a-space>
+                <a-button size="mini" @click="goAnnotate(record.id)">标注</a-button>
+                <a-button size="mini" @click="goQuality(record.id)">质检</a-button>
+              </a-space>
+            </template>
+          </a-table>
+          <div class="pager">
+            <a-pagination v-model:current="page" v-model:page-size="pageSize" :total="total" show-total show-page-size :page-size-options="[10,20,50]" />
+          </div>
         </a-card>
       </a-col>
     </a-row>
@@ -218,4 +261,6 @@ const scTableCols1 = [
   margin-right: 12px;
   margin-bottom: 6px;
 }
+.list-filters { margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.pager { display: flex; justify-content: flex-end; margin-top: 12px; }
 </style>

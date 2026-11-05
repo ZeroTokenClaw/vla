@@ -1,3 +1,4 @@
+import { seedQcTasks, seedSamplePool } from './seed/qc'
 /** StarCompute QC mock: multimodal tickets, workflow, sample-check. */
 
 export const MODALITIES = [
@@ -38,10 +39,16 @@ export const REJECT_REASONS = [
   { value: 'other', label: '其他' },
 ]
 
-export const PRIORITIES = [
-  { value: 'high', label: '高' },
-  { value: 'medium', label: '中' },
-  { value: 'low', label: '低' },
+export const SLA_CLASSES = [
+  { value: 'S', label: 'S级' },
+  { value: 'A', label: 'A级' },
+  { value: 'B', label: 'B级' },
+]
+
+export const TENANTS = [
+  { value: 'tn-sc-01', label: '租户 tn-sc-01' },
+  { value: 'tn-sc-02', label: '租户 tn-sc-02' },
+  { value: 'tn-sc-03', label: '租户 tn-sc-03' },
 ]
 
 /** Sample media + annotation payloads per modality (desensitized). */
@@ -122,13 +129,14 @@ function clone(v) {
 
 /** In-memory mutable store seeded once. */
 export function createInitialTasks() {
-  return [
+  const hand = [
     {
       id: 'SC-2026-1104-0312',
       title: '客服工单实体抽取返修',
       modality: 'text_ner',
       status: 'annotating',
-      priority: 'high',
+      slaClass: 'S',
+      tenantCode: 'tn-sc-01',
       creatorId: 'u-sc-admin',
       assigneeId: 'u-sc-annotator',
       collaborators: ['u-sc-annotator', 'u-sc-annotator-2'],
@@ -167,7 +175,8 @@ export function createInitialTasks() {
       title: '桌面抓取语义分割初标',
       modality: 'seg',
       status: 'reviewing',
-      priority: 'medium',
+      slaClass: 'A',
+      tenantCode: 'tn-sc-02',
       creatorId: 'u-sc-admin',
       assigneeId: 'u-sc-annotator-2',
       collaborators: ['u-sc-annotator-2', 'u-sc-reviewer'],
@@ -200,7 +209,8 @@ export function createInitialTasks() {
       title: '指令语音切片质检',
       modality: 'audio_slice',
       status: 'final_review',
-      priority: 'high',
+      slaClass: 'S',
+      tenantCode: 'tn-sc-01',
       creatorId: 'u-sc-admin',
       assigneeId: 'u-sc-annotator',
       collaborators: ['u-sc-annotator', 'u-sc-reviewer'],
@@ -234,7 +244,8 @@ export function createInitialTasks() {
       title: '料箱分拣视频目标检测',
       modality: 'video_det',
       status: 'rejected',
-      priority: 'high',
+      slaClass: 'S',
+      tenantCode: 'tn-sc-01',
       creatorId: 'u-sc-admin',
       assigneeId: 'u-sc-annotator',
       collaborators: ['u-sc-annotator', 'u-sc-annotator-2', 'u-sc-reviewer'],
@@ -272,7 +283,8 @@ export function createInitialTasks() {
       title: '桌面点云分割样例入库',
       modality: 'point_seg',
       status: 'assigned',
-      priority: 'medium',
+      slaClass: 'A',
+      tenantCode: 'tn-sc-02',
       creatorId: 'u-sc-admin',
       assigneeId: 'u-sc-annotator-2',
       collaborators: ['u-sc-annotator-2'],
@@ -295,7 +307,8 @@ export function createInitialTasks() {
       title: '历史文本NER归档抽检',
       modality: 'text_ner',
       status: 'done',
-      priority: 'low',
+      slaClass: 'B',
+      tenantCode: 'tn-sc-03',
       creatorId: 'u-sc-admin',
       assigneeId: 'u-sc-annotator',
       collaborators: ['u-sc-annotator', 'u-sc-reviewer'],
@@ -315,6 +328,17 @@ export function createInitialTasks() {
       refluxed: true,
     },
   ]
+  try {
+    return seedQcTasks(hand)
+  } catch (e) {
+    console.error('[starcompute] qc seed failed, fallback thin', e)
+    return hand.map((t) => ({
+      ...t,
+      slaClass: t.slaClass || 'A',
+      tenantCode: t.tenantCode || 'tn-sc-01',
+      reworkTrail: t.reworkTrail || [],
+    }))
+  }
 }
 
 export const SAMPLE_RULES = [
@@ -376,8 +400,8 @@ export const SPEC_SECTIONS = [
   },
 ]
 
-export function createInitialSamplePool() {
-  return [
+export function createInitialSamplePool(tasks = []) {
+  const hand = [
     {
       id: 'SPL-SC-1001',
       taskId: 'SC-2026-1101-0204',
@@ -444,4 +468,10 @@ export function createInitialSamplePool() {
       refluxed: false,
     },
   ]
+  try {
+    return seedSamplePool(hand, tasks)
+  } catch (e) {
+    console.error('[starcompute] sample pool seed failed, fallback thin', e)
+    return hand
+  }
 }

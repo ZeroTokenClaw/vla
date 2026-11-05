@@ -49,7 +49,7 @@ describe('VLA services', () => {
     const { createCollectTask } = await import('@/services/vla')
     const task = await createCollectTask({
       name: '单元测试采集',
-      scene: 'lab_bench',
+      scene: 'chem_hood',
       plan: 'wipe_surface',
       mode: 'scripted',
       actionTemplateIds: ['tpl-reach', 'tpl-wipe'],
