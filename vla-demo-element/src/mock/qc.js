@@ -1,3 +1,5 @@
+import { seedQcTasks, seedSamplePool } from './seed/qc'
+
 /** DataLink QC mock: multimodal tickets, workflow, sample-check. */
 
 export const MODALITIES = [
@@ -122,13 +124,14 @@ function clone(v) {
 
 /** In-memory mutable store seeded once. */
 export function createInitialTasks() {
-  return [
+  const hand = [
     {
       id: 'DL-2026-1104-0312',
       title: '客服工单实体抽取返修',
       modality: 'text_ner',
       status: 'annotating',
       priority: 'high',
+      buCode: 'BU-华东',
       creatorId: 'u-dl-admin',
       assigneeId: 'u-dl-annotator',
       collaborators: ['u-dl-annotator', 'u-dl-annotator-2'],
@@ -160,6 +163,7 @@ export function createInitialTasks() {
         { at: '2026-11-04 09:20:00', actor: '陈思远', action: '开始标注', note: '' },
       ],
       rejectReason: null,
+      rejectChain: [],
       labelsSnapshot: clone(SAMPLE_RESOURCES.text_ner.entities),
     },
     {
@@ -168,6 +172,7 @@ export function createInitialTasks() {
       modality: 'seg',
       status: 'reviewing',
       priority: 'medium',
+      buCode: 'BU-华南',
       creatorId: 'u-dl-admin',
       assigneeId: 'u-dl-annotator-2',
       collaborators: ['u-dl-annotator-2', 'u-dl-reviewer'],
@@ -193,6 +198,7 @@ export function createInitialTasks() {
         { at: '2026-11-04 11:55:00', actor: '赵雨桐', action: '提交初审', note: '' },
       ],
       rejectReason: null,
+      rejectChain: [],
       labelsSnapshot: clone(SAMPLE_RESOURCES.seg.masks),
     },
     {
@@ -201,6 +207,7 @@ export function createInitialTasks() {
       modality: 'audio_slice',
       status: 'final_review',
       priority: 'high',
+      buCode: 'BU-华北',
       creatorId: 'u-dl-admin',
       assigneeId: 'u-dl-annotator',
       collaborators: ['u-dl-annotator', 'u-dl-reviewer'],
@@ -227,6 +234,7 @@ export function createInitialTasks() {
         { at: '2026-11-04 09:15:00', actor: '林晓萱', action: '初审通过', note: '进入终审' },
       ],
       rejectReason: null,
+      rejectChain: [],
       labelsSnapshot: clone(SAMPLE_RESOURCES.audio_slice.slices),
     },
     {
@@ -235,6 +243,7 @@ export function createInitialTasks() {
       modality: 'video_det',
       status: 'rejected',
       priority: 'high',
+      buCode: 'BU-西南',
       creatorId: 'u-dl-admin',
       assigneeId: 'u-dl-annotator',
       collaborators: ['u-dl-annotator', 'u-dl-annotator-2', 'u-dl-reviewer'],
@@ -265,6 +274,7 @@ export function createInitialTasks() {
         },
       ],
       rejectReason: 'label_miss',
+      rejectChain: [{ at: '2026-11-04 09:45:00', by: 'u-dl-reviewer', reason: 'label_miss' }],
       labelsSnapshot: clone(SAMPLE_RESOURCES.video_det.detections),
     },
     {
@@ -273,6 +283,7 @@ export function createInitialTasks() {
       modality: 'point_seg',
       status: 'assigned',
       priority: 'medium',
+      buCode: 'BU-华东',
       creatorId: 'u-dl-admin',
       assigneeId: 'u-dl-annotator-2',
       collaborators: ['u-dl-annotator-2'],
@@ -288,6 +299,7 @@ export function createInitialTasks() {
         { at: '2026-11-04 11:05:00', actor: '周明轩', action: '分配给赵雨桐', note: '' },
       ],
       rejectReason: null,
+      rejectChain: [],
       labelsSnapshot: clone(SAMPLE_RESOURCES.point_seg.segments),
     },
     {
@@ -296,6 +308,7 @@ export function createInitialTasks() {
       modality: 'text_ner',
       status: 'done',
       priority: 'low',
+      buCode: 'BU-华南',
       creatorId: 'u-dl-admin',
       assigneeId: 'u-dl-annotator',
       collaborators: ['u-dl-annotator', 'u-dl-reviewer'],
@@ -311,10 +324,22 @@ export function createInitialTasks() {
         { at: '2026-11-03 18:20:00', actor: '林晓萱', action: '终审通过', note: '入库回流库' },
       ],
       rejectReason: null,
+      rejectChain: [],
       labelsSnapshot: clone(SAMPLE_RESOURCES.text_ner.entities),
       refluxed: true,
     },
   ]
+  // ensure hand rows have buCode / rejectChain (defense in depth)
+  for (const t of hand) {
+    if (!t.buCode) t.buCode = 'BU-华东'
+    if (!Array.isArray(t.rejectChain)) t.rejectChain = []
+  }
+  try {
+    return seedQcTasks(hand)
+  } catch (e) {
+    console.error('[datalink] QC seed failed, fallback thin', e)
+    return hand
+  }
 }
 
 export const SAMPLE_RULES = [
@@ -376,8 +401,8 @@ export const SPEC_SECTIONS = [
   },
 ]
 
-export function createInitialSamplePool() {
-  return [
+export function createInitialSamplePool(tasks = []) {
+  const hand = [
     {
       id: 'SPL-DL-1001',
       taskId: 'DL-2026-1101-0204',
@@ -444,4 +469,10 @@ export function createInitialSamplePool() {
       refluxed: false,
     },
   ]
+  try {
+    return seedSamplePool(hand, tasks)
+  } catch (e) {
+    console.error('[datalink] sample pool seed failed, fallback thin', e)
+    return hand
+  }
 }

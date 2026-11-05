@@ -37,7 +37,8 @@ const canSubmitReview = computed(() => {
 })
 
 async function loadList() {
-  taskList.value = await listQcTasks()
+  const res = await listQcTasks({ page: 1, pageSize: 500 })
+  taskList.value = res.items
 }
 
 async function loadTask(id) {

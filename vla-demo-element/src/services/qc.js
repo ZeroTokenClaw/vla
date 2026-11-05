@@ -3,6 +3,7 @@ import { businessDelay } from './delay'
 import { pushAudit } from '@/stores/audit'
 import { useAuthStore } from '@/stores/auth'
 import { users } from '@/mock/users'
+import { paginate } from '@/mock/seed/paginate'
 import {
   createInitialTasks,
   createInitialSamplePool,
@@ -16,10 +17,11 @@ import {
   PRIORITIES,
 } from '@/mock/qc'
 
+const _tasks = createInitialTasks()
 const state = {
-  tasks: createInitialTasks(),
+  tasks: _tasks,
   sampleRules: SAMPLE_RULES.map((r) => ({ ...r, modalities: [...r.modalities] })),
-  samplePool: createInitialSamplePool(),
+  samplePool: createInitialSamplePool(_tasks),
   lastSampleRun: null,
   seq: 340,
 }
@@ -59,16 +61,22 @@ export function listMeta() {
   }
 }
 
-export async function listQcTasks(filters = {}) {
+export async function listQcTasks(query = {}) {
   await businessDelay()
+  const { page, pageSize, status, modality, priority, keyword } = query
   let rows = [...state.tasks]
-  if (filters.status) rows = rows.filter((t) => t.status === filters.status)
-  if (filters.modality) rows = rows.filter((t) => t.modality === filters.modality)
-  if (filters.keyword) {
-    const kw = String(filters.keyword).trim()
+  if (status) rows = rows.filter((t) => t.status === status)
+  if (modality) rows = rows.filter((t) => t.modality === modality)
+  if (priority) rows = rows.filter((t) => t.priority === priority)
+  if (keyword) {
+    const kw = String(keyword).trim()
     rows = rows.filter((t) => t.id.includes(kw) || t.title.includes(kw))
   }
-  return rows.map((t) => ({ ...t }))
+  const result = paginate(rows, { page, pageSize })
+  return {
+    ...result,
+    items: result.items.map((t) => ({ ...t })),
+  }
 }
 
 export async function getQcTask(id) {
@@ -98,6 +106,7 @@ export async function createQcTask(payload) {
     modality: payload.modality || 'text_ner',
     status: 'created',
     priority: payload.priority || 'medium',
+    buCode: payload.buCode || 'BU-华东',
     creatorId: auth.user?.id || 'u-dl-admin',
     assigneeId: null,
     collaborators: [],
@@ -110,6 +119,7 @@ export async function createQcTask(payload) {
     comments: [],
     history: [{ at: now(), actor: actorName(), action: '创建工单', note: '' }],
     rejectReason: null,
+    rejectChain: [],
     labelsSnapshot: JSON.parse(
       JSON.stringify(
         SAMPLE_RESOURCES[payload.modality || 'text_ner']?.entities ||
@@ -183,6 +193,12 @@ export async function transition(id, toStatus, note = '', extra = {}) {
   t.updatedAt = now()
   if (toStatus === 'rejected') {
     t.rejectReason = extra.rejectReason || 'other'
+    if (!Array.isArray(t.rejectChain)) t.rejectChain = []
+    t.rejectChain.push({
+      at: now(),
+      by: auth.user?.id || 'unknown',
+      reason: t.rejectReason,
+    })
   }
   if (toStatus === 'annotating' && from === 'rejected') {
     t.rejectReason = null
@@ -298,12 +314,21 @@ export async function runSampleCheck(ruleId) {
   }
 }
 
-export async function listSamplePool(filters = {}) {
+export async function listSamplePool(query = {}) {
   await businessDelay()
+  const { page, pageSize, status, modality, keyword } = query
   let rows = [...state.samplePool]
-  if (filters.status) rows = rows.filter((s) => s.status === filters.status)
-  if (filters.modality) rows = rows.filter((s) => s.modality === filters.modality)
-  return rows
+  if (status) rows = rows.filter((s) => s.status === status)
+  if (modality) rows = rows.filter((s) => s.modality === modality)
+  if (keyword) {
+    const kw = String(keyword).trim()
+    rows = rows.filter((s) => s.id.includes(kw) || (s.title || '').includes(kw) || (s.taskId || '').includes(kw))
+  }
+  const result = paginate(rows, { page, pageSize })
+  return {
+    ...result,
+    items: result.items.map((s) => ({ ...s })),
+  }
 }
 
 export async function passSample(id) {

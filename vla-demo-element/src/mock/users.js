@@ -26,7 +26,28 @@ export const users = [
     name: '赵雨桐',
     role: 'annotator',
     account: 'zhao.yt',
-    dept: '标注二组',
+    dept: '视觉标注组',
+  },
+  {
+    id: 'u-dl-reviewer-2',
+    name: '韩清扬',
+    role: 'reviewer',
+    account: 'han.qy',
+    dept: '质检二组',
+  },
+  {
+    id: 'u-dl-annotator-3',
+    name: '许岚',
+    role: 'annotator',
+    account: 'xu.lan',
+    dept: '语音标注组',
+  },
+  {
+    id: 'u-dl-annotator-4',
+    name: '丁一鸣',
+    role: 'annotator',
+    account: 'ding.ym',
+    dept: '点云专项组',
   },
 ]
 

@@ -18,7 +18,10 @@ const auth = useAuthStore()
 const loading = ref(false)
 const tasks = ref([])
 const meta = reactive({ modalities: [], statuses: [], priorities: [], users: [] })
-const filters = reactive({ keyword: '', status: '', modality: '' })
+const filters = reactive({ keyword: '', status: '', modality: '', priority: '' })
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
 
 const createVisible = ref(false)
 const createForm = reactive({
@@ -41,7 +44,10 @@ async function load() {
   loading.value = true
   try {
     Object.assign(meta, listMeta())
-    tasks.value = await listQcTasks({ ...filters })
+    const res = await listQcTasks({ ...filters, page: page.value, pageSize: pageSize.value })
+    tasks.value = res.items
+    total.value = res.total
+    page.value = res.page
   } finally {
     loading.value = false
   }
@@ -50,6 +56,7 @@ async function load() {
 onMounted(load)
 
 async function onSearch() {
+  page.value = 1
   await load()
 }
 
@@ -121,6 +128,11 @@ defineExpose({ openCreate: () => { createVisible.value = true } })
             <el-option v-for="m in meta.modalities" :key="m.value" :label="m.label" :value="m.value" />
           </el-select>
         </el-form-item>
+        <el-form-item label="优先级">
+          <el-select v-model="filters.priority" clearable placeholder="全部" style="width: 120px">
+            <el-option v-for="p in meta.priorities" :key="p.value" :label="p.label" :value="p.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="loading" @click="onSearch">查询</el-button>
         </el-form-item>
@@ -152,7 +164,8 @@ defineExpose({ openCreate: () => { createVisible.value = true } })
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="处理人" width="100">
+        <el-table-column prop="buCode" label="事业部" width="100" />
+      <el-table-column label="处理人" width="100">
           <template #default="{ row }">{{ userLabel(row.assigneeId) }}</template>
         </el-table-column>
         <el-table-column label="协作" width="80">
@@ -171,6 +184,18 @@ defineExpose({ openCreate: () => { createVisible.value = true } })
         </el-table-column>
       </el-table>
     </el-card>
+
+        <div class="pager">
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
+        layout="total, prev, pager, next, sizes"
+        :page-sizes="[10, 20, 50]"
+        @current-change="load"
+        @size-change="() => { page = 1; load() }"
+      />
+    </div>
 
     <el-dialog v-model="createVisible" title="新建质控工单" width="480px">
       <el-form label-width="90px">
@@ -233,5 +258,10 @@ defineExpose({ openCreate: () => { createVisible.value = true } })
   margin: 0 0 12px;
   color: #6b7280;
   font-size: 13px;
+}
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin: 12px 0 8px;
 }
 </style>
