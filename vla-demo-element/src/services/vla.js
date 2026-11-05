@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
 import { businessDelay } from './delay'
+import { paginate } from '@/mock/seed/paginate'
 import { pushAudit } from '@/stores/audit'
 import { useAuthStore } from '@/stores/auth'
 import { exportJSON, exportCSV, exportExcel } from '@/utils/exportFiles'
@@ -48,9 +49,9 @@ export function listMeta() {
   }
 }
 
-export async function listVlaTasks() {
+export async function listVlaTasks(query = {}) {
   await businessDelay()
-  return state.tasks.map((t) => ({
+  let rows = state.tasks.map((t) => ({
     id: t.id,
     name: t.name,
     scene: t.scene,
@@ -63,6 +64,18 @@ export async function listVlaTasks() {
     issuesDetected: t.issuesDetected,
     personnelIds: [...t.personnelIds],
   }))
+  if (query.scene) rows = rows.filter((t) => t.scene === query.scene)
+  if (query.mode) rows = rows.filter((t) => t.mode === query.mode)
+  if (query.status) rows = rows.filter((t) => t.status === query.status)
+  if (query.keyword) {
+    const kw = String(query.keyword).trim().toLowerCase()
+    if (kw) {
+      rows = rows.filter(
+        (t) => t.id.toLowerCase().includes(kw) || t.name.toLowerCase().includes(kw),
+      )
+    }
+  }
+  return paginate(rows, query)
 }
 
 export async function getVlaTask(taskId) {
@@ -87,6 +100,11 @@ export async function createCollectTask(config) {
 
   const id = nextVlaId(state.seq++)
   const templates = ACTION_TEMPLATES.filter((a) => config.actionTemplateIds.includes(a.id))
+  const epN = String(((state.seq - 2) % 6) + 1).padStart(2, '0')
+  const mediaUrls = {
+    videoUrl: '/samples/video/ep_' + epN + '.mp4',
+    imageUrl: '/samples/video/ep_' + epN + '_poster.jpg',
+  }
   const task = {
     id,
     name: config.name.trim(),
@@ -98,8 +116,8 @@ export async function createCollectTask(config) {
     instruction:
       config.instruction?.trim() ||
       `采集任务「${config.name.trim()}」：按所选动作模板完成示范并标注起止帧。`,
-    imageUrl: '/samples/video/bin_pick_poster.jpg',
-    videoUrl: '/samples/video/bin_pick.mp4',
+    imageUrl: mediaUrls.imageUrl,
+    videoUrl: mediaUrls.videoUrl,
     fps: 10,
     totalFrames: 100,
     durationSec: 10,
@@ -110,6 +128,14 @@ export async function createCollectTask(config) {
     issues: [],
     issuesDetected: false,
     filteredOut: [],
+    trajectory: {
+      joints: Array.from({ length: 12 }, (_, i) =>
+        Array.from({ length: 7 }, (__, j) => Number((0.1 * i + 0.01 * j).toFixed(4))),
+      ),
+      gripper: Array.from({ length: 12 }, (_, i) => Number((i / 12).toFixed(3))),
+      tSec: Array.from({ length: 12 }, (_, i) => Number((i / 10).toFixed(2))),
+      hz: 10,
+    },
     templateSnapshot: templates.map((t) => ({ ...t })),
   }
   state.tasks.unshift(task)

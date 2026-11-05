@@ -1,4 +1,6 @@
-/** DataLink 具身采集标注 mock：采集任务、动作模板、时间轴片段、质检问题。 */
+import { seedVlaEpisodes } from './seed/vla'
+
+/** DataLink 具身采集标注 mock：采集任务、动作模板、时间轴片段、质检问题单 */
 
 export const COLLECT_MODES = [
   { value: 'teleop', label: '遥操作采集' },
@@ -40,8 +42,8 @@ export const ISSUE_TYPES = [
   { key: 'mismatch', label: '样本与任务不匹配', color: 'danger' },
 ]
 
-/** Seed collect tasks with linked multimodal assets + action spans. */
-export const VLA_TASKS = [
+/** Hand-written showcase episodes (tests + demo paths hard-code IDs). */
+const HAND_VLA_TASKS = [
   {
     id: 'DL-VLA-2026-001',
     name: '仓拣-红盒抓取放置',
@@ -112,9 +114,8 @@ export const VLA_TASKS = [
         actionLabel: '回撤复位',
         instruction: '回撤到初始姿态',
         keyNode: false,
-      },
+      }
     ],
-    /** Pre-seeded quality issues (shown after detect). */
     issuesSeed: [
       {
         id: 'iss-1',
@@ -155,7 +156,7 @@ export const VLA_TASKS = [
         severity: 'high',
         message: '任务指令要求「托盘左侧」，轨迹终点偏右',
         sampleId: 'SMP-001-E',
-      },
+      }
     ],
   },
   {
@@ -210,7 +211,7 @@ export const VLA_TASKS = [
         actionLabel: '回撤复位',
         instruction: '放到台面中央后回撤',
         keyNode: false,
-      },
+      }
     ],
     issuesSeed: [
       {
@@ -226,7 +227,7 @@ export const VLA_TASKS = [
         type: 'missing',
         frame: 60,
         severity: 'high',
-        message: '抓取段缺失腕部 RGB 帧 8 帧',
+        message: '抓取段缺失腕部 RGB 约 8 帧',
         sampleId: 'SMP-002-B',
       },
       {
@@ -236,7 +237,7 @@ export const VLA_TASKS = [
         severity: 'medium',
         message: '方案为开抽屉，日志标注含擦拭动作模板',
         sampleId: 'SMP-002-C',
-      },
+      }
     ],
   },
   {
@@ -262,7 +263,7 @@ export const VLA_TASKS = [
         type: 'jitter',
         frame: 40,
         severity: 'low',
-        message: '擦拭往返路径存在高频微抖',
+        message: '擦拭往返路径存在高频微振',
         sampleId: 'SMP-003-A',
       },
       {
@@ -272,12 +273,25 @@ export const VLA_TASKS = [
         severity: 'medium',
         message: '操作员手臂遮挡海绵接触点',
         sampleId: 'SMP-003-B',
-      },
+      }
     ],
   },
 ]
+
+function loadVlaTasks() {
+  try {
+    return seedVlaEpisodes(HAND_VLA_TASKS)
+  } catch (err) {
+    console.error('[vla seed] failed, falling back to hand seeds', err)
+    return HAND_VLA_TASKS
+  }
+}
+
+/** Seed collect tasks with linked multimodal assets + action spans (+ thick seed). */
+export const VLA_TASKS = loadVlaTasks()
 
 export function nextVlaId(seq) {
   const n = String(seq).padStart(3, '0')
   return `DL-VLA-2026-${n}`
 }
+

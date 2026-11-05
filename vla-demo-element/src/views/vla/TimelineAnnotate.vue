@@ -59,8 +59,23 @@ const currentActionHint = computed(() => {
   )
 })
 
+const trajectoryPreview = computed(() => {
+  const tr = task.value?.trajectory
+  if (!tr?.joints?.length) return null
+  const last = tr.joints[Math.min(currentFrame.value, tr.joints.length - 1)] || tr.joints[0]
+  return {
+    frames: tr.joints.length,
+    hz: tr.hz,
+    dof: last?.length || 0,
+    joints: last,
+    gripper: tr.gripper?.[Math.min(currentFrame.value, (tr.gripper?.length || 1) - 1)],
+    tSec: tr.tSec?.[Math.min(currentFrame.value, (tr.tSec?.length || 1) - 1)],
+  }
+})
+
 async function loadList() {
-  taskList.value = await listVlaTasks()
+  const listRes = await listVlaTasks({ page: 1, pageSize: 200 })
+  taskList.value = listRes.items
 }
 
 async function loadTask(id) {
@@ -262,7 +277,17 @@ onMounted(async () => {
           <div class="timeline-bar">
             <div class="slider-row">
               <span class="lab">帧索引</span>
-              <el-slider
+              
+        <el-alert
+          v-if="trajectoryPreview"
+          type="info"
+          :closable="false"
+          show-icon
+          class="traj-alert"
+          :title="`trajectory ${trajectoryPreview.frames}f @${trajectoryPreview.hz}Hz DoF ${trajectoryPreview.dof}`"
+          :description="`t=${trajectoryPreview.tSec}s gripper=${trajectoryPreview.gripper} joints=[${(trajectoryPreview.joints || []).map((x) => Number(x).toFixed(2)).join(', ')}]`"
+        />
+<el-slider
                 v-model="currentFrame"
                 :min="0"
                 :max="task.totalFrames"
@@ -550,5 +575,8 @@ code {
   background: #f3f4f6;
   padding: 1px 6px;
   border-radius: 4px;
+}
+.traj-alert {
+  margin-bottom: 10px;
 }
 </style>

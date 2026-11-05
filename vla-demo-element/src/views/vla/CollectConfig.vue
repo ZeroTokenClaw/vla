@@ -13,6 +13,15 @@ const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
 const tasks = ref([])
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const filters = reactive({
+  scene: '',
+  mode: '',
+  status: '',
+  keyword: '',
+})
 const meta = reactive({
   modes: [],
   scenes: [],
@@ -20,6 +29,11 @@ const meta = reactive({
   actionTemplates: [],
   personnel: [],
 })
+const statusOptions = [
+  { value: 'ready', label: 'ready' },
+  { value: 'annotating', label: 'annotating' },
+  { value: 'done', label: 'done' },
+]
 
 const formRef = ref()
 const form = reactive({
@@ -46,10 +60,25 @@ async function refresh() {
   try {
     const m = listMeta()
     Object.assign(meta, m)
-    tasks.value = await listVlaTasks()
+    const res = await listVlaTasks({
+      page: page.value,
+      pageSize: pageSize.value,
+      scene: filters.scene || undefined,
+      mode: filters.mode || undefined,
+      status: filters.status || undefined,
+      keyword: filters.keyword || undefined,
+    })
+    tasks.value = res.items
+    total.value = res.total
+    page.value = res.page
   } finally {
     loading.value = false
   }
+}
+
+async function onSearch() {
+  page.value = 1
+  await refresh()
 }
 
 async function onSubmit() {
@@ -189,10 +218,34 @@ onMounted(refresh)
         <el-card shadow="never" class="card">
           <template #header>
             <div class="card-head">
-              <span>采集任务列表</span>
+              <span>采集任务列表（{{ total }}）</span>
               <el-text type="info" size="small">前缀 DL-VLA-</el-text>
             </div>
           </template>
+
+                    <el-form :inline="true" class="list-filters" @submit.prevent>
+            <el-form-item label="关键词">
+              <el-input v-model="filters.keyword" clearable placeholder="任务号/名称" style="width: 160px" />
+            </el-form-item>
+            <el-form-item label="场景">
+              <el-select v-model="filters.scene" clearable placeholder="全部" style="width: 140px">
+                <el-option v-for="s in meta.scenes" :key="s.value" :label="s.label" :value="s.value" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="模式">
+              <el-select v-model="filters.mode" clearable placeholder="全部" style="width: 140px">
+                <el-option v-for="mo in meta.modes" :key="mo.value" :label="mo.label" :value="mo.value" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="状态">
+              <el-select v-model="filters.status" clearable placeholder="全部" style="width: 120px">
+                <el-option v-for="st in statusOptions" :key="st.value" :label="st.label" :value="st.value" />
+              </el-select>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :loading="loading" @click="onSearch">查询</el-button>
+            </el-form-item>
+          </el-form>
 
           <el-empty v-if="!tasks.length && !loading" description="暂无采集任务，请先创建" :image-size="72" />
           <el-table v-else :data="tasks" stripe size="small" empty-text="暂无采集任务">
@@ -219,6 +272,17 @@ onMounted(refresh)
               </template>
             </el-table-column>
           </el-table>
+          <div class="pager">
+            <el-pagination
+              v-model:current-page="page"
+              v-model:page-size="pageSize"
+              :total="total"
+              layout="total, prev, pager, next, sizes"
+              :page-sizes="[10, 20, 50]"
+              @current-change="refresh"
+              @size-change="() => { page = 1; refresh() }"
+            />
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -237,5 +301,13 @@ onMounted(refresh)
 :deep(.el-radio) {
   margin-right: 12px;
   margin-bottom: 6px;
+}
+.list-filters {
+  margin-bottom: 8px;
+}
+.pager {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>
