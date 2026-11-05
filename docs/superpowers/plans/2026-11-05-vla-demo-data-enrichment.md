@@ -1395,7 +1395,7 @@ git commit -m "docs: thick-data record scripts and acceptance checklist"
 - 无新功能文件；可能修复 Task 2–9 遗漏的调用方
 - 可选：`docs/superpowers/plans/acceptance-checklist.md` 勾选 E/F 的本地笔记（不强制提交勾选）
 
-- [ ] **Step 1: 跑四套单测（作为回归门禁）**
+- [x] **Step 1: 跑四套单测（作为回归门禁）**
 
 ```bash
 cd E:\omp\vla\vla-demo-element && pnpm test
@@ -1406,7 +1406,7 @@ cd E:\omp\vla\vla-demo-arco && pnpm test
 
 Expected: 四套均 exit 0。若失败，按失败用例回到对应 Task 修，不得删断言凑绿。
 
-- [ ] **Step 2: 启动四套 dev server 并 HTTP 冒烟**
+- [x] **Step 2: 启动四套 dev server 并 HTTP 冒烟**
 
 四个终端（或后台）：
 
@@ -1426,14 +1426,14 @@ foreach ($p in 5101,5102,5103,5104) {
 
 Expected: 四行均为 `200`。
 
-- [ ] **Step 3: 手工快速点检（每套 ≤2 分钟）**
+- [x] **Step 3: 手工快速点检（每套 ≤2 分钟）**
 
 - 列表翻页有数据  
 - 筛一个无命中关键字见空态  
 - VLA 详情能播 ep 视频  
 - 训练详情看得见验证表字段  
 
-- [ ] **Step 4: 媒体跨套哈希抽检**
+- [x] **Step 4: 媒体跨套哈希抽检**
 
 ```powershell
 Get-FileHash E:\omp\vla\vla-demo-*\public\samples\video\ep_01.mp4 | Format-Table Hash, Path
@@ -1441,7 +1441,7 @@ Get-FileHash E:\omp\vla\vla-demo-*\public\samples\video\ep_01.mp4 | Format-Table
 
 Expected: 四个 Hash **互不相同**。
 
-- [ ] **Step 5: Commit 仅当有冒烟修复**
+- [x] **Step 5: Commit 仅当有冒烟修复**
 
 ```bash
 # 若有修复：
