@@ -33,7 +33,7 @@ const canReview = computed(() => auth.role === 'reviewer' || auth.role === 'admi
 const isAnnotator = computed(() => auth.role === 'annotator')
 
 async function loadList() {
-  tasks.value = await listQcTasks()
+  tasks.value = (await listQcTasks({ page: 1, pageSize: 200 })).items
 }
 
 async function loadTask(id) {

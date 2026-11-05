@@ -39,7 +39,7 @@ const issueTypeLabel = (key) => meta.issueTypes.find((t) => t.key === key)?.labe
 const issueTypeColor = (key) => meta.issueTypes.find((t) => t.key === key)?.color || 'info'
 
 async function loadList() {
-  taskList.value = await listVlaTasks()
+  taskList.value = (await listVlaTasks({ page: 1, pageSize: 200 })).items
 }
 
 async function loadTask(id) {

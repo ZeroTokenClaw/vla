@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
 import { businessDelay } from './delay'
+import { paginate } from '@/mock/seed/paginate'
 import { pushAudit } from '@/stores/audit'
 import { useAuthStore } from '@/stores/auth'
 import { exportJSON, exportCSV, exportExcel } from '@/utils/exportFiles'
@@ -48,9 +49,10 @@ export function listMeta() {
   }
 }
 
-export async function listVlaTasks() {
+export async function listVlaTasks(query = {}) {
   await businessDelay()
-  return state.tasks.map((t) => ({
+  const { page, pageSize, status, scene, keyword } = query
+  let rows = state.tasks.map((t) => ({
     id: t.id,
     name: t.name,
     scene: t.scene,
@@ -58,11 +60,20 @@ export async function listVlaTasks() {
     mode: t.mode,
     status: t.status,
     createdAt: t.createdAt,
-    actionCount: t.actions.length,
-    issueCount: t.issues.length,
-    issuesDetected: t.issuesDetected,
-    personnelIds: [...t.personnelIds],
+    durationSec: t.durationSec,
+    totalFrames: t.totalFrames,
+    videoUrl: t.videoUrl,
+    imageUrl: t.imageUrl,
+    actionCount: (t.actions || []).length,
+    issueCount: (t.issues || t.issuesSeed || []).length,
   }))
+  if (status) rows = rows.filter((t) => t.status === status)
+  if (scene) rows = rows.filter((t) => t.scene === scene)
+  if (keyword) {
+    const kw = String(keyword).trim()
+    rows = rows.filter((t) => t.id.includes(kw) || t.name.includes(kw))
+  }
+  return paginate(rows, { page, pageSize })
 }
 
 export async function getVlaTask(taskId) {

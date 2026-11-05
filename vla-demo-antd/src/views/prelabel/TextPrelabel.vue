@@ -15,6 +15,9 @@ const route = useRoute()
 const router = useRouter()
 
 const docs = ref([])
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
 const doc = ref(null)
 const loading = ref(false)
 const running = ref(false)
@@ -33,7 +36,10 @@ const draft = ref({
 const currentId = computed(() => route.params.id)
 
 async function loadList() {
-  docs.value = await listTextDocs()
+  const res = await listTextDocs({ page: page.value, pageSize: pageSize.value })
+  docs.value = res.items
+  total.value = res.total
+  page.value = res.page
 }
 
 async function loadDoc(id) {

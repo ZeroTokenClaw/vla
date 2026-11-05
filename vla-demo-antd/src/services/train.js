@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
 import { businessDelay } from './delay'
+import { paginate } from '@/mock/seed/paginate'
 import { pushAudit } from '@/stores/audit'
 import { useAuthStore } from '@/stores/auth'
 import { exportCSV, exportExcel } from '@/utils/exportFiles'
@@ -58,9 +59,10 @@ export function listMeta() {
   }
 }
 
-export async function listExperiments() {
+export async function listExperiments(query = {}) {
   await businessDelay()
-  return state.experiments.map((e) => ({
+  const { page, pageSize, status, algorithm, keyword } = query
+  let rows = state.experiments.map((e) => ({
     id: e.id,
     name: e.name,
     algorithm: e.algorithm,
@@ -75,7 +77,16 @@ export async function listExperiments() {
     currentEpoch: e.currentEpoch,
     createdAt: e.createdAt,
     metricLen: e.metrics.loss.length,
+    catalogCount: e.catalog?.length || 0,
+    ckptCount: e.ckptList?.length || 0,
   }))
+  if (status) rows = rows.filter((e) => e.status === status)
+  if (algorithm) rows = rows.filter((e) => e.algorithm === algorithm)
+  if (keyword) {
+    const kw = String(keyword).trim()
+    rows = rows.filter((e) => e.id.includes(kw) || e.name.includes(kw))
+  }
+  return paginate(rows, { page, pageSize })
 }
 
 export async function getExperiment(expId) {
@@ -87,6 +98,24 @@ export async function getExperiment(expId) {
  * 创建训练实验（仅管理员）
  * @param {{ name: string, algorithm: string, version: string, model: string, batchSize: number, learningRate: number, epochs: number, augment: boolean, augmentOps?: string[], gpuIds?: string[] }} cfg
  */
+
+function emptyThickFields(id) {
+  return {
+    catalog: [
+      {
+        id: `CAT-ORN-${id}-tr`,
+        name: '待绑定训练集',
+        fold: 'train',
+        rev: 'draft',
+        sampleCount: 0,
+      },
+    ],
+    ckptList: [],
+    evalGrid: [],
+    cmMatrix: [],
+  }
+}
+
 export async function createExperiment(cfg) {
   await businessDelay()
   requireAdmin('创建实验')
@@ -120,8 +149,9 @@ export async function createExperiment(cfg) {
     createdAt: now(),
     startedAt: null,
     finishedAt: null,
-    logs: [{ at: now(), level: 'info', message: '实验已创建' }],
+    runLog: [{ at: now(), level: 'info', message: '实验已创建' }],
     metrics: { loss: [], acc: [], map: [] },
+    ...emptyThickFields(id),
   }
 
   if (gpuIds.length) {
@@ -135,7 +165,7 @@ export async function createExperiment(cfg) {
       card.free = false
     }
     const names = gpuIds.map((id) => state.gpus.find((g) => g.id === id)?.name || id).join(', ')
-    exp.logs.push({ at: now(), level: 'info', message: `创建时分配 GPU：${names}` })
+    exp.runLog.push({ at: now(), level: 'info', message: `创建时分配 GPU：${names}` })
   }
 
   state.experiments.unshift(exp)
@@ -178,7 +208,7 @@ export async function allocateGpu(expId, gpuIds) {
   exp.gpuIds = [...gpuIds]
   if (exp.status === 'draft') exp.status = 'ready'
   const names = gpuIds.map((id) => state.gpus.find((g) => g.id === id)?.name || id).join(', ')
-  exp.logs.push({ at: now(), level: 'info', message: `分配 GPU：${names}` })
+  exp.runLog.push({ at: now(), level: 'info', message: `分配 GPU：${names}` })
   pushAudit({ action: '分配训练 GPU', detail: `${expId} · ${names}` })
   return clone(exp)
 }
@@ -198,7 +228,7 @@ export async function startTrain(expId) {
   }
   exp.status = 'running'
   exp.startedAt = now()
-  exp.logs.push({
+  exp.runLog.push({
     at: now(),
     level: 'info',
     message: `开始训练 · epoch 目标 ${exp.epochs} · 增强 ${exp.augment ? '开' : '关'}`,
@@ -215,7 +245,7 @@ export async function stopTrain(expId) {
   if (exp.status !== 'running') throw new Error('当前不在运行状态')
   exp.status = exp.currentEpoch >= exp.epochs ? 'finished' : 'stopped'
   if (exp.status === 'finished') exp.finishedAt = now()
-  exp.logs.push({
+  exp.runLog.push({
     at: now(),
     level: 'warning',
     message: `手动停止 · 已完成 epoch ${exp.currentEpoch}/${exp.epochs}`,
@@ -247,7 +277,7 @@ export async function tickEpoch(expId) {
   exp.metrics.loss.push(point.loss)
   exp.metrics.acc.push(point.acc)
   exp.metrics.map.push(point.map)
-  exp.logs.push({
+  exp.runLog.push({
     at: now(),
     level: 'info',
     message: `epoch ${next}/${exp.epochs} · loss=${point.loss} acc=${point.acc} mAP=${point.map}`,
@@ -257,7 +287,7 @@ export async function tickEpoch(expId) {
   if (next >= exp.epochs) {
     exp.status = 'finished'
     exp.finishedAt = now()
-    exp.logs.push({ at: now(), level: 'success', message: `训练完成 epoch ${next}/${exp.epochs}` })
+    exp.runLog.push({ at: now(), level: 'success', message: `训练完成 epoch ${next}/${exp.epochs}` })
     done = true
     pushAudit({ action: '训练完成', detail: `${expId} · ${next} epochs` })
   }

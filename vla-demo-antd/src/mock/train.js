@@ -1,3 +1,5 @@
+import { seedExperiments } from './seed/train'
+
 /** Orion 算法工场 mock：算法版本、模型、GPU 卡、实验种子 */
 
 export const ALGORITHMS = [
@@ -42,8 +44,8 @@ function series(n, start, end, noise = 0.02) {
   return out
 }
 
-/** Seed experiments with ORN-EXP- prefix */
-export const EXPERIMENTS = [
+/** Hand-written showcase experiments */
+const HAND_EXPERIMENTS = [
   {
     id: 'ORN-EXP-2026-001',
     name: '仓拣 VLA 策略-基线',
@@ -116,6 +118,19 @@ export const EXPERIMENTS = [
     metrics: { loss: [], acc: [], map: [] },
   },
 ]
+
+
+function loadExperiments() {
+  try {
+    return seedExperiments(HAND_EXPERIMENTS)
+  } catch (err) {
+    console.error('[orion] train seed failed, falling back to hand seeds', err)
+    return HAND_EXPERIMENTS
+  }
+}
+
+/** Seed experiments with ORN-EXP- prefix (>=50 after enrichment) */
+export const EXPERIMENTS = loadExperiments()
 
 export function nextExpId(seq) {
   const n = String(seq).padStart(3, '0')

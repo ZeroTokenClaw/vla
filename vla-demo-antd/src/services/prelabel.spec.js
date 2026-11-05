@@ -42,7 +42,7 @@ describe('Prelabel services', () => {
     // find a job already at accept if any; otherwise walk a fresh one is heavy —
     // create path: use job at confirm and force by advancing is slow; instead
     // call advance when step is accept by mutating via repeated advances from ACC-003 mid-step
-    const jobs = await listAcceptJobs()
+    const jobs = (await listAcceptJobs({ page: 1, pageSize: 200 })).items
     const job = jobs.find((j) => j.id === 'ORN-ACC-2026-003')
     expect(job).toBeTruthy()
     // annotate -> qa

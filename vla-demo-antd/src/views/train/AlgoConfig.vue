@@ -19,6 +19,10 @@ const loading = ref(false)
 const saving = ref(false)
 const allocating = ref(false)
 const experiments = ref([])
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const filters = reactive({ status: undefined, algorithm: undefined, keyword: '' })
 const meta = reactive({
   algorithms: [],
   models: [],
@@ -69,7 +73,10 @@ async function refresh() {
   loading.value = true
   try {
     Object.assign(meta, listMeta())
-    experiments.value = await listExperiments()
+    const res = await listExperiments({ ...filters, page: page.value, pageSize: pageSize.value })
+    experiments.value = res.items
+    total.value = res.total
+    page.value = res.page
   } finally {
     loading.value = false
   }
@@ -324,6 +331,9 @@ const ornTableCols1 = [
       </template>
   </template>
 </a-table>
+    <div style="margin-top: 12px; text-align: right">
+      <a-pagination v-model:current="page" v-model:page-size="pageSize" :total="total" show-size-changer @change="load" />
+    </div>
         </a-card>
       </a-col>
     </a-row>

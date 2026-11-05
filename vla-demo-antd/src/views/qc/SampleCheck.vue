@@ -42,7 +42,7 @@ async function load() {
   try {
     Object.assign(meta, listMeta())
     rules.value = await listSampleRules()
-    pool.value = await listSamplePool()
+    pool.value = (await listSamplePool({ page: 1, pageSize: 200 })).items
   } finally {
     loading.value = false
   }

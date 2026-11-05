@@ -1,3 +1,5 @@
+import { seedVlaEpisodes } from './seed/vla'
+
 /** Orion 具身采集标注 mock：采集任务、动作模板、时间轴片段、质检问题。 */
 
 export const COLLECT_MODES = [
@@ -8,10 +10,10 @@ export const COLLECT_MODES = [
 ]
 
 export const SCENE_OPTIONS = [
-  { value: 'kitchen_counter', label: '厨房台面' },
-  { value: 'lab_bench', label: '实验台' },
-  { value: 'warehouse_bin', label: '仓拣料箱' },
-  { value: 'office_desk', label: '办公桌面' },
+  { value: 'aisle_pick', label: '货架拣选通道' },
+  { value: 'cold_lab', label: '冷链实验室' },
+  { value: 'mezzanine', label: '夹层作业台' },
+  { value: 'lobby_desk', label: '前台接待桌' },
 ]
 
 export const PLAN_OPTIONS = [
@@ -41,11 +43,11 @@ export const ISSUE_TYPES = [
 ]
 
 /** Seed collect tasks with linked multimodal assets + action spans. */
-export const VLA_TASKS = [
+const HAND_VLA_TASKS = [
   {
     id: 'ORN-VLA-2026-001',
     name: '仓拣-红盒抓取放置',
-    scene: 'warehouse_bin',
+    scene: 'aisle_pick',
     plan: 'pick_place_std',
     mode: 'teleop',
     actionTemplateIds: ['tpl-reach', 'tpl-grasp', 'tpl-lift', 'tpl-move', 'tpl-place', 'tpl-retreat'],
@@ -161,7 +163,7 @@ export const VLA_TASKS = [
   {
     id: 'ORN-VLA-2026-002',
     name: '厨房-开抽屉取杯',
-    scene: 'kitchen_counter',
+    scene: 'lobby_desk',
     plan: 'open_drawer',
     mode: 'human_demo',
     actionTemplateIds: ['tpl-reach', 'tpl-open', 'tpl-grasp', 'tpl-retreat'],
@@ -242,7 +244,7 @@ export const VLA_TASKS = [
   {
     id: 'ORN-VLA-2026-003',
     name: '实验台-擦拭表面（待标注）',
-    scene: 'lab_bench',
+    scene: 'cold_lab',
     plan: 'wipe_surface',
     mode: 'scripted',
     actionTemplateIds: ['tpl-reach', 'tpl-wipe', 'tpl-retreat'],
@@ -276,6 +278,18 @@ export const VLA_TASKS = [
     ],
   },
 ]
+
+
+function loadVlaTasks() {
+  try {
+    return seedVlaEpisodes(HAND_VLA_TASKS)
+  } catch (err) {
+    console.error('[orion] vla seed failed, falling back to hand seeds', err)
+    return HAND_VLA_TASKS
+  }
+}
+
+export const VLA_TASKS = loadVlaTasks()
 
 export function nextVlaId(seq) {
   const n = String(seq).padStart(3, '0')

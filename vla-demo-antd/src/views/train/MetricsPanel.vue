@@ -29,7 +29,7 @@ const isAnnotator = computed(() => auth.role === 'annotator')
 const canExport = computed(() => true) // all roles may export report after finish / anytime for demo
 
 async function loadList() {
-  experiments.value = await listExperiments()
+  experiments.value = (await listExperiments({ page: 1, pageSize: 200 })).items
 }
 
 async function loadAll(id) {

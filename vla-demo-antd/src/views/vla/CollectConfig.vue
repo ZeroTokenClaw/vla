@@ -13,6 +13,10 @@ const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
 const tasks = ref([])
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const filters = reactive({ status: undefined, scene: undefined, keyword: '' })
 const meta = reactive({
   modes: [],
   scenes: [],
@@ -46,7 +50,10 @@ async function refresh() {
   try {
     const m = listMeta()
     Object.assign(meta, m)
-    tasks.value = await listVlaTasks()
+    const res = await listVlaTasks({ ...filters, page: page.value, pageSize: pageSize.value })
+    tasks.value = res.items
+    total.value = res.total
+    page.value = res.page
   } finally {
     loading.value = false
   }
@@ -215,6 +222,9 @@ const ornTableCols1 = [
       </template>
   </template>
 </a-table>
+    <div style="margin-top: 12px; text-align: right">
+      <a-pagination v-model:current="page" v-model:page-size="pageSize" :total="total" show-size-changer @change="load" />
+    </div>
         </a-card>
       </a-col>
     </a-row>

@@ -15,6 +15,9 @@ const route = useRoute()
 const router = useRouter()
 
 const list = ref([])
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
 const image = ref(null)
 const loading = ref(false)
 const runningOcr = ref(false)
@@ -29,7 +32,10 @@ const yoloDraft = ref([])
 const currentId = computed(() => route.params.id)
 
 async function loadList() {
-  list.value = await listVisionImages()
+  const res = await listVisionImages({ page: page.value, pageSize: pageSize.value })
+  list.value = res.items
+  total.value = res.total
+  page.value = res.page
 }
 
 async function loadImage(id) {

@@ -18,13 +18,16 @@ const auth = useAuthStore()
 const loading = ref(false)
 const tasks = ref([])
 const meta = reactive({ modalities: [], statuses: [], priorities: [], users: [] })
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
 const filters = reactive({ keyword: '', status: '', modality: '' })
 
 const createVisible = ref(false)
 const createForm = reactive({
   title: '',
   modality: 'text_ner',
-  priority: 'medium',
+  severity: 'P1',
   sampleCount: 20,
   batchId: '',
 })
@@ -41,7 +44,10 @@ async function load() {
   loading.value = true
   try {
     Object.assign(meta, listMeta())
-    tasks.value = await listQcTasks({ ...filters })
+    const res = await listQcTasks({ ...filters, page: page.value, pageSize: pageSize.value })
+    tasks.value = res.items
+    total.value = res.total
+    page.value = res.page
   } finally {
     loading.value = false
   }
@@ -157,8 +163,8 @@ const ornTableCols1 = [
       <template v-if="column.key === '优先级'">
 <a-tag
               size="small"
-              :color="mapTagColor(record.priority === 'high' ? 'danger' : record.priority === 'medium' ? 'warning' : 'info')">
-              {{ record.priority === 'high' ? '高' : record.priority === 'medium' ? '中' : '低' }}
+              :color="mapTagColor(record.severity === 'P0' ? 'danger' : record.severity === 'P1' ? 'warning' : 'info')">
+              {{ record.severity }}
             </a-tag>
       </template>
       <template v-if="column.key === '处理人'">
@@ -177,6 +183,15 @@ const ornTableCols1 = [
       </template>
   </template>
 </a-table>
+    <div style="margin-top: 12px; text-align: right">
+      <a-pagination
+        v-model:current="page"
+        v-model:page-size="pageSize"
+        :total="total"
+        show-size-changer
+        @change="load"
+      />
+    </div>
     </a-card>
 
     <a-modal v-model:open="createVisible" title="新建质控工单" width="480px">
@@ -190,10 +205,10 @@ const ornTableCols1 = [
           </a-select>
         </a-form-item>
         <a-form-item label="优先级">
-          <a-radio-group v-model:value="createForm.priority">
-            <a-radio value="high">高</a-radio>
-            <a-radio value="medium">中</a-radio>
-            <a-radio value="low">低</a-radio>
+          <a-radio-group v-model:value="createForm.severity">
+            <a-radio value="P0">P0</a-radio>
+            <a-radio value="medium">P1</a-radio>
+            <a-radio value="P2">P2</a-radio>
           </a-radio-group>
         </a-form-item>
         <a-form-item label="样本数">

@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
 import { businessDelay } from './delay'
+import { paginate } from '@/mock/seed/paginate'
 import { pushAudit } from '@/stores/audit'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -52,15 +53,28 @@ export function listMeta() {
   }
 }
 
-export async function listTextDocs() {
+export async function listTextDocs(query = {}) {
   await businessDelay()
-  return state.texts.map((d) => ({
-    id: d.id,
-    title: d.title,
-    batchId: d.batchId,
-    status: d.status,
-    hasCorrection: !!d.corrected,
-  }))
+  let rows = [...state.texts]
+  if (query.status) rows = rows.filter((d) => d.status === query.status)
+  if (query.batchId) rows = rows.filter((d) => d.batchId === query.batchId)
+  if (query.keyword) {
+    const kw = String(query.keyword).trim()
+    rows = rows.filter((d) => d.id.includes(kw) || d.title.includes(kw))
+  }
+  const result = paginate(rows, query)
+  return {
+    ...result,
+    items: result.items.map((d) => ({
+      id: d.id,
+      title: d.title,
+      batchId: d.batchId,
+      status: d.status,
+      progressPct: d.progressPct,
+      spotCheckPass: d.spotCheckPass,
+      hasCorrection: !!d.corrected,
+    })),
+  }
 }
 
 export async function getTextDoc(docId) {
@@ -98,16 +112,30 @@ export async function runTextPipeline(docId) {
   }
 }
 
-export async function listVisionImages() {
+export async function listVisionImages(query = {}) {
   await businessDelay()
-  return state.visions.map((v) => ({
-    id: v.id,
-    title: v.title,
-    imageUrl: v.imageUrl,
-    status: v.status,
-    ocrCorrected: v.ocrCorrected,
-    yoloCorrected: v.yoloCorrected,
-  }))
+  let rows = [...state.visions]
+  if (query.status) rows = rows.filter((v) => v.status === query.status)
+  if (query.batchId) rows = rows.filter((v) => v.batchId === query.batchId)
+  if (query.keyword) {
+    const kw = String(query.keyword).trim()
+    rows = rows.filter((v) => v.id.includes(kw) || v.title.includes(kw))
+  }
+  const result = paginate(rows, query)
+  return {
+    ...result,
+    items: result.items.map((v) => ({
+      id: v.id,
+      title: v.title,
+      batchId: v.batchId,
+      imageUrl: v.imageUrl,
+      status: v.status,
+      progressPct: v.progressPct,
+      spotCheckPass: v.spotCheckPass,
+      ocrCorrected: v.ocrCorrected,
+      yoloCorrected: v.yoloCorrected,
+    })),
+  }
 }
 
 export async function getVisionImage(imageId) {
@@ -226,9 +254,15 @@ function diffTextFields(before, after) {
   return fields
 }
 
-export async function listAcceptJobs() {
+export async function listAcceptJobs(query = {}) {
   await businessDelay()
-  return state.accepts.map((j) => ({ ...j, stepDone: [...j.stepDone] }))
+  let rows = state.accepts.map((j) => ({ ...j, stepDone: [...j.stepDone] }))
+  if (query.status) rows = rows.filter((j) => j.status === query.status)
+  if (query.keyword) {
+    const kw = String(query.keyword).trim()
+    rows = rows.filter((j) => j.id.includes(kw) || j.title.includes(kw))
+  }
+  return paginate(rows, query)
 }
 
 export async function getAcceptJob(id) {

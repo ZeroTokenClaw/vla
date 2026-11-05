@@ -5,28 +5,28 @@ export const users = [
     name: '周明轩',
     role: 'admin',
     account: 'demo.admin',
-    dept: 'Orion Ops',
+    team: 'Orion Ops',
   },
   {
     id: 'u-orn-reviewer',
     name: '林晓萱',
     role: 'reviewer',
     account: 'demo.reviewer',
-    dept: 'Reviewer Squad',
+    team: 'Dataset Guild',
   },
   {
     id: 'u-orn-annotator',
     name: '陈思远',
     role: 'annotator',
     account: 'demo.annotator',
-    dept: 'Annotator Team',
+    team: 'Label Desk',
   },
   {
     id: 'u-orn-annotator-2',
     name: '赵雨桐',
     role: 'annotator',
     account: 'zhao.yt',
-    dept: 'Annotator Team',
+    team: 'Label Desk',
   },
 ]
 

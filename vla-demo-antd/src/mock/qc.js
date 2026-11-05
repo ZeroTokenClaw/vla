@@ -1,3 +1,5 @@
+import { seedQcTasks, seedSamplePool } from './seed/qc'
+
 /** Orion Annotate QC mock: multimodal tickets, workflow, sample-check. */
 
 export const MODALITIES = [
@@ -38,10 +40,16 @@ export const REJECT_REASONS = [
   { value: 'other', label: '其他' },
 ]
 
-export const PRIORITIES = [
-  { value: 'high', label: '高' },
-  { value: 'medium', label: '中' },
-  { value: 'low', label: '低' },
+export const SEVERITIES = [
+  { value: 'P0', label: 'P0' },
+  { value: 'P1', label: 'P1' },
+  { value: 'P2', label: 'P2' },
+]
+
+export const WORKSPACES = [
+  { value: 'ws-sg', label: 'Singapore' },
+  { value: 'ws-eu', label: 'Europe' },
+  { value: 'ws-us', label: 'US' },
 ]
 
 /** Sample media + annotation payloads per modality (desensitized). */
@@ -122,13 +130,14 @@ function clone(v) {
 
 /** In-memory mutable store seeded once. */
 export function createInitialTasks() {
-  return [
+  const hand = [
     {
       id: 'ORN-JOB-2026-1104-0312',
       title: '客服工单实体抽取返修',
       modality: 'text_ner',
       status: 'annotating',
-      priority: 'high',
+      severity: 'P0',
+      workspace: 'ws-sg',
       creatorId: 'u-orn-admin',
       assigneeId: 'u-orn-annotator',
       collaborators: ['u-orn-annotator', 'u-orn-annotator-2'],
@@ -167,7 +176,8 @@ export function createInitialTasks() {
       title: '桌面抓取语义分割初标',
       modality: 'seg',
       status: 'reviewing',
-      priority: 'medium',
+      severity: 'P1',
+      workspace: 'ws-eu',
       creatorId: 'u-orn-admin',
       assigneeId: 'u-orn-annotator-2',
       collaborators: ['u-orn-annotator-2', 'u-orn-reviewer'],
@@ -200,7 +210,8 @@ export function createInitialTasks() {
       title: '指令语音切片质检',
       modality: 'audio_slice',
       status: 'final_review',
-      priority: 'high',
+      severity: 'P0',
+      workspace: 'ws-sg',
       creatorId: 'u-orn-admin',
       assigneeId: 'u-orn-annotator',
       collaborators: ['u-orn-annotator', 'u-orn-reviewer'],
@@ -234,7 +245,8 @@ export function createInitialTasks() {
       title: '料箱分拣视频目标检测',
       modality: 'video_det',
       status: 'rejected',
-      priority: 'high',
+      severity: 'P0',
+      workspace: 'ws-sg',
       creatorId: 'u-orn-admin',
       assigneeId: 'u-orn-annotator',
       collaborators: ['u-orn-annotator', 'u-orn-annotator-2', 'u-orn-reviewer'],
@@ -272,7 +284,8 @@ export function createInitialTasks() {
       title: '桌面点云分割样例入库',
       modality: 'point_seg',
       status: 'assigned',
-      priority: 'medium',
+      severity: 'P1',
+      workspace: 'ws-eu',
       creatorId: 'u-orn-admin',
       assigneeId: 'u-orn-annotator-2',
       collaborators: ['u-orn-annotator-2'],
@@ -295,7 +308,8 @@ export function createInitialTasks() {
       title: '历史文本NER归档抽检',
       modality: 'text_ner',
       status: 'done',
-      priority: 'low',
+      severity: 'P2',
+      workspace: 'ws-us',
       creatorId: 'u-orn-admin',
       assigneeId: 'u-orn-annotator',
       collaborators: ['u-orn-annotator', 'u-orn-reviewer'],
@@ -315,17 +329,29 @@ export function createInitialTasks() {
       refluxed: true,
     },
   ]
+  try {
+    return seedQcTasks(hand)
+  } catch (e) {
+    console.error('[orion] qc seed failed, fallback thin', e)
+    return hand.map((t) => ({
+      ...t,
+      severity: t.severity || 'P1',
+      workspace: t.workspace || 'ws-sg',
+      rejectionTrail: t.rejectionTrail || [],
+    }))
+  }
 }
+
 
 export const SAMPLE_RULES = [
   {
     id: 'RULE-ORN-01',
-    name: '文本/语音高优批次抽检',
+    name: '文本/语音高 severity 批次抽检',
     ratio: 0.15,
     modalities: ['text_ner', 'audio_slice'],
     minSamples: 20,
     enabled: true,
-    description: '对高优先级文本与语音工单按 15% 比例随机抽检，覆盖漏标与规范违反项。',
+    description: '对 P0/P1 文本与语音工单按 15% 比例随机抽检，覆盖漏标与规范违反项。',
   },
   {
     id: 'RULE-ORN-02',
@@ -342,7 +368,7 @@ export const SPEC_SECTIONS = [
   {
     id: 'spec-1',
     title: '1. 通用原则',
-    body: '工单标注须可复现、可审计。实体/框/切片边界以像素或时间轴刻度为准；不确定时标记「待确认」并留言批注，禁止臆造标签。',
+    body: 'Orion 工单标注须可复现、可审计。实体/框/切片边界以像素或时间轴刻度为准；不确定时标记「待确认」并留言批注，禁止臆造标签。',
   },
   {
     id: 'spec-2',
@@ -372,12 +398,12 @@ export const SPEC_SECTIONS = [
   {
     id: 'spec-7',
     title: '7. 抽检与回流',
-    body: '抽检不合格须填写驳回原因；返修后重新进入初审。合格样本写入回流库，供训练集引用。',
+    body: '抽检不合格须填写驳回原因并写入 rejectionTrail；返修后重新进入初审。合格样本写入回流库，供训练集 catalog 引用。',
   },
 ]
 
-export function createInitialSamplePool() {
-  return [
+export function createInitialSamplePool(tasks = []) {
+  const hand = [
     {
       id: 'SPL-ORN-1001',
       taskId: 'ORN-JOB-2026-1101-0204',
@@ -444,4 +470,10 @@ export function createInitialSamplePool() {
       refluxed: false,
     },
   ]
+  try {
+    return seedSamplePool(hand, tasks)
+  } catch (e) {
+    console.error('[orion] sample pool seed failed, fallback thin', e)
+    return hand
+  }
 }
