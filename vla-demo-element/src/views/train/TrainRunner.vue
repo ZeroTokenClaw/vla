@@ -40,7 +40,8 @@ function gpuNames(ids) {
 }
 
 async function loadList() {
-  experiments.value = await listExperiments()
+  const res = await listExperiments({ page: 1, pageSize: 200 })
+  experiments.value = res.items || []
   meta.value = listMeta()
 }
 

@@ -1,4 +1,6 @@
-/** DataLink 算法工场 mock：算法版本、模型、GPU 卡、实验种子 */
+﻿/** DataLink 算法工场 mock：算法版本、模型、GPU 卡、实验种子 */
+
+import { seedExperiments } from './seed/train'
 
 export const ALGORITHMS = [
   { value: 'vla_policy', label: 'VLA 策略微调', versions: ['v1.2.0', 'v1.3.0', 'v1.4.1-beta'] },
@@ -42,8 +44,8 @@ function series(n, start, end, noise = 0.02) {
   return out
 }
 
-/** Seed experiments with DL-EXP- prefix */
-export const EXPERIMENTS = [
+/** Hand-written showcase experiments (tests hard-code DL-EXP-2026-001). */
+const HAND_EXPERIMENTS = [
   {
     id: 'DL-EXP-2026-001',
     name: '仓拣 VLA 策略-基线',
@@ -71,6 +73,45 @@ export const EXPERIMENTS = [
       acc: series(20, 0.38, 0.91, 0.015),
       map: series(20, 0.22, 0.78, 0.02),
     },
+    datasets: [
+      {
+        id: 'DS-DL-DL-EXP-2026-001-tr',
+        name: '仓拣回流训练集',
+        split: 'train',
+        versionPin: 'v2026.11.02',
+        sampleCount: 18420,
+      },
+      {
+        id: 'DS-DL-DL-EXP-2026-001-va',
+        name: '仓拣验证集',
+        split: 'val',
+        versionPin: 'v2026.11.02',
+        sampleCount: 2100,
+      },
+      {
+        id: 'DS-DL-DL-EXP-2026-001-te',
+        name: '仓拣测试集',
+        split: 'test',
+        versionPin: 'v2026.10.28',
+        sampleCount: 960,
+      },
+    ],
+    checkpoints: [
+      { id: 'CKPT-DL-EXP-2026-001-e10', epoch: 10, path: '/ckpts/DL-EXP-2026-001/e10.pt', metric: 0.712 },
+      { id: 'CKPT-DL-EXP-2026-001-best', epoch: 20, path: '/ckpts/DL-EXP-2026-001/best.pt', metric: 0.814 },
+    ],
+    valTable: [
+      { cls: 'cup', precision: 0.91, recall: 0.88, f1: 0.895 },
+      { cls: 'plate', precision: 0.86, recall: 0.9, f1: 0.88 },
+      { cls: 'hand', precision: 0.79, recall: 0.74, f1: 0.764 },
+      { cls: 'other', precision: 0.82, recall: 0.8, f1: 0.81 },
+    ],
+    confusionMatrix: [
+      [52, 1, 1, 0],
+      [2, 46, 1, 1],
+      [1, 2, 41, 2],
+      [0, 1, 2, 39],
+    ],
   },
   {
     id: 'DL-EXP-2026-002',
@@ -116,6 +157,18 @@ export const EXPERIMENTS = [
     metrics: { loss: [], acc: [], map: [] },
   },
 ]
+
+function loadExperiments() {
+  try {
+    return seedExperiments(HAND_EXPERIMENTS)
+  } catch (err) {
+    console.error('[train seed] failed, falling back to hand seeds', err)
+    return HAND_EXPERIMENTS
+  }
+}
+
+/** Seed experiments with DL-EXP- prefix (≥50 after enrichment) */
+export const EXPERIMENTS = loadExperiments()
 
 export function nextExpId(seq) {
   const n = String(seq).padStart(3, '0')

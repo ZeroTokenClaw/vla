@@ -8,6 +8,7 @@ describe('Train mock seeds', () => {
   it('seeds DL-EXP experiments with GPU card names', () => {
     expect(EXPERIMENTS.length).toBeGreaterThanOrEqual(2)
     expect(EXPERIMENTS.every((e) => e.id.startsWith('DL-EXP-'))).toBe(true)
+    expect(EXPERIMENTS.some((e) => e.id === 'DL-EXP-2026-001')).toBe(true)
     const finished = EXPERIMENTS.find((e) => e.status === 'finished')
     expect(finished.metrics.loss.length).toBe(finished.epochs)
     expect(finished.gpuIds.length).toBeGreaterThan(0)

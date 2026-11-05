@@ -29,7 +29,8 @@ const isAnnotator = computed(() => auth.role === 'annotator')
 const canExport = computed(() => true) // all roles may export report after finish / anytime for demo
 
 async function loadList() {
-  experiments.value = await listExperiments()
+  const res = await listExperiments({ page: 1, pageSize: 200 })
+  experiments.value = res.items || []
 }
 
 async function loadAll(id) {
@@ -117,6 +118,11 @@ onUnmounted(() => {
 watch(currentId, (id) => {
   if (id) loadAll(id)
 })
+
+function formatMatrix(matrix) {
+  if (!matrix?.length) return ''
+  return matrix.map((row) => row.join('  ')).join('\n')
+}
 
 function switchExp(id) {
   router.push(`/train/metrics/${id}`)
@@ -237,6 +243,41 @@ async function refresh() {
             <el-table-column prop="map" label="mAP" />
           </el-table>
           <el-empty v-else description="暂无指标，请先在「训练运行」启动实验" :image-size="72" />
+          <template v-if="exp.datasets?.length">
+            <h4 class="sub">数据集 datasets（split / versionPin）</h4>
+            <el-table :data="exp.datasets" size="small" stripe class="table">
+              <el-table-column prop="id" label="ID" min-width="160" show-overflow-tooltip />
+              <el-table-column prop="name" label="名称" min-width="120" show-overflow-tooltip />
+              <el-table-column prop="split" label="split" width="90" />
+              <el-table-column prop="versionPin" label="versionPin" width="120" />
+              <el-table-column prop="sampleCount" label="样本数" width="100" />
+            </el-table>
+          </template>
+
+          <template v-if="exp.checkpoints?.length">
+            <h4 class="sub">Checkpoints</h4>
+            <el-table :data="exp.checkpoints" size="small" stripe class="table">
+              <el-table-column prop="id" label="ID" min-width="160" show-overflow-tooltip />
+              <el-table-column prop="epoch" label="epoch" width="80" />
+              <el-table-column prop="path" label="path" min-width="180" show-overflow-tooltip />
+              <el-table-column prop="metric" label="metric" width="90" />
+            </el-table>
+          </template>
+
+          <template v-if="exp.valTable?.length">
+            <h4 class="sub">验证表 valTable</h4>
+            <el-table :data="exp.valTable" size="small" stripe class="table">
+              <el-table-column prop="cls" label="cls" width="100" />
+              <el-table-column prop="precision" label="precision" />
+              <el-table-column prop="recall" label="recall" />
+              <el-table-column prop="f1" label="f1" />
+            </el-table>
+          </template>
+
+          <template v-if="exp.confusionMatrix?.length">
+            <h4 class="sub">混淆矩阵 confusionMatrix</h4>
+            <pre class="matrix">{{ formatMatrix(exp.confusionMatrix) }}</pre>
+          </template>
         </el-card>
         <el-empty v-else description="请选择实验" />
       </el-col>
@@ -281,5 +322,18 @@ async function refresh() {
 }
 .table {
   margin-top: 12px;
+}
+.sub {
+  margin: 16px 0 8px;
+  font-size: 13px;
+}
+.matrix {
+  margin-top: 8px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
 }
 </style>

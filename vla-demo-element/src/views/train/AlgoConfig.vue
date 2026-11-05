@@ -19,12 +19,28 @@ const loading = ref(false)
 const saving = ref(false)
 const allocating = ref(false)
 const experiments = ref([])
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const filters = reactive({
+  keyword: '',
+  status: '',
+  algorithm: '',
+})
 const meta = reactive({
   algorithms: [],
   models: [],
   gpus: [],
   augmentOptions: [],
 })
+
+const statusOptions = [
+  { value: 'draft', label: 'draft' },
+  { value: 'ready', label: 'ready' },
+  { value: 'running', label: 'running' },
+  { value: 'finished', label: 'finished' },
+  { value: 'stopped', label: 'stopped' },
+]
 
 const form = reactive({
   name: '',
@@ -69,10 +85,24 @@ async function refresh() {
   loading.value = true
   try {
     Object.assign(meta, listMeta())
-    experiments.value = await listExperiments()
+    const res = await listExperiments({
+      page: page.value,
+      pageSize: pageSize.value,
+      status: filters.status || undefined,
+      algorithm: filters.algorithm || undefined,
+      keyword: filters.keyword || undefined,
+    })
+    experiments.value = res.items
+    total.value = res.total
+    page.value = res.page
   } finally {
     loading.value = false
   }
+}
+
+async function onSearch() {
+  page.value = 1
+  await refresh()
 }
 
 async function onCreate() {
@@ -168,7 +198,7 @@ onMounted(refresh)
           <template #header>
             <div class="card-head">
               <span>新建训练实验</span>
-              <el-tag size="small" type="primary" effect="plain">配置项 2 分</el-tag>
+              <el-tag size="small" type="primary" effect="plain">配置约 2 分</el-tag>
             </div>
           </template>
 
@@ -304,9 +334,55 @@ onMounted(refresh)
           <template #header>
             <div class="card-head">
               <span>实验列表</span>
-              <el-text type="info" size="small">前缀 DL-EXP-</el-text>
+              <el-text type="info" size="small">前缀 DL-EXP- · 共 {{ total }} 条</el-text>
             </div>
           </template>
+
+          <el-form :inline="true" class="list-filters" @submit.prevent>
+            <el-form-item label="关键词">
+              <el-input
+                v-model="filters.keyword"
+                clearable
+                placeholder="实验号/名称"
+                style="width: 160px"
+                @keyup.enter="onSearch"
+              />
+            </el-form-item>
+            <el-form-item label="状态">
+              <el-select v-model="filters.status" clearable placeholder="全部" style="width: 120px">
+                <el-option
+                  v-for="s in statusOptions"
+                  :key="s.value"
+                  :label="s.label"
+                  :value="s.value"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="算法">
+              <el-select v-model="filters.algorithm" clearable placeholder="全部" style="width: 150px">
+                <el-option
+                  v-for="a in meta.algorithms"
+                  :key="a.value"
+                  :label="a.label"
+                  :value="a.value"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="onSearch">筛选</el-button>
+              <el-button
+                @click="
+                  filters.keyword = ''
+                  filters.status = ''
+                  filters.algorithm = ''
+                  onSearch()
+                "
+              >
+                重置
+              </el-button>
+            </el-form-item>
+          </el-form>
+
           <el-table :data="experiments" stripe size="small" empty-text="暂无实验">
             <el-table-column prop="id" label="实验号" min-width="140" />
             <el-table-column prop="name" label="名称" min-width="130" show-overflow-tooltip />
@@ -316,6 +392,9 @@ onMounted(refresh)
             <el-table-column prop="version" label="版本" width="90" />
             <el-table-column label="模型" min-width="110">
               <template #default="{ row }">{{ modelLabel(row.model) }}</template>
+            </el-table-column>
+            <el-table-column label="数据集" width="80">
+              <template #default="{ row }">{{ row.datasetCount || 0 }}</template>
             </el-table-column>
             <el-table-column label="GPU" min-width="140" show-overflow-tooltip>
               <template #default="{ row }">{{ gpuNames(row.gpuIds) || '—' }}</template>
@@ -332,6 +411,24 @@ onMounted(refresh)
               </template>
             </el-table-column>
           </el-table>
+
+          <div class="pager">
+            <el-pagination
+              v-model:current-page="page"
+              v-model:page-size="pageSize"
+              :total="total"
+              layout="total, prev, pager, next, sizes"
+              :page-sizes="[10, 20, 50]"
+              background
+              @current-change="refresh"
+              @size-change="
+                () => {
+                  page = 1
+                  refresh()
+                }
+              "
+            />
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -349,5 +446,13 @@ onMounted(refresh)
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+.list-filters {
+  margin-bottom: 8px;
+}
+.pager {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

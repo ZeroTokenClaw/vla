@@ -3,6 +3,7 @@ import { businessDelay } from './delay'
 import { pushAudit } from '@/stores/audit'
 import { useAuthStore } from '@/stores/auth'
 import { exportCSV, exportExcel } from '@/utils/exportFiles'
+import { paginate } from '@/mock/seed/paginate'
 import {
   ALGORITHMS,
   MODELS,
@@ -49,6 +50,23 @@ function findExp(expId) {
   return exp
 }
 
+function emptyThickFields(id) {
+  return {
+    datasets: [
+      {
+        id: `DS-DL-${id}-tr`,
+        name: '待绑定训练集',
+        split: 'train',
+        versionPin: 'draft',
+        sampleCount: 0,
+      },
+    ],
+    checkpoints: [],
+    valTable: [],
+    confusionMatrix: [],
+  }
+}
+
 export function listMeta() {
   return {
     algorithms: ALGORITHMS,
@@ -58,9 +76,14 @@ export function listMeta() {
   }
 }
 
-export async function listExperiments() {
+/**
+ * @param {{ page?: number|string, pageSize?: number|string, status?: string, algorithm?: string, keyword?: string }} [query]
+ * @returns {Promise<{ items: object[], total: number, page: number, pageSize: number }>}
+ */
+export async function listExperiments(query = {}) {
   await businessDelay()
-  return state.experiments.map((e) => ({
+  const { page, pageSize, status, algorithm, keyword } = query
+  let rows = state.experiments.map((e) => ({
     id: e.id,
     name: e.name,
     algorithm: e.algorithm,
@@ -75,7 +98,16 @@ export async function listExperiments() {
     currentEpoch: e.currentEpoch,
     createdAt: e.createdAt,
     metricLen: e.metrics.loss.length,
+    datasetCount: e.datasets?.length || 0,
+    checkpointCount: e.checkpoints?.length || 0,
   }))
+  if (status) rows = rows.filter((e) => e.status === status)
+  if (algorithm) rows = rows.filter((e) => e.algorithm === algorithm)
+  if (keyword) {
+    const kw = String(keyword).trim()
+    rows = rows.filter((e) => e.id.includes(kw) || e.name.includes(kw))
+  }
+  return paginate(rows, { page, pageSize })
 }
 
 export async function getExperiment(expId) {
@@ -103,6 +135,7 @@ export async function createExperiment(cfg) {
 
   const id = nextExpId(state.seq++)
   const gpuIds = Array.isArray(cfg.gpuIds) ? [...cfg.gpuIds] : []
+  const thick = emptyThickFields(id)
   const exp = {
     id,
     name: cfg.name.trim(),
@@ -122,19 +155,17 @@ export async function createExperiment(cfg) {
     finishedAt: null,
     logs: [{ at: now(), level: 'info', message: '实验已创建' }],
     metrics: { loss: [], acc: [], map: [] },
+    ...thick,
   }
 
   if (gpuIds.length) {
     for (const gid of gpuIds) {
       const card = state.gpus.find((g) => g.id === gid)
       if (!card) throw new Error(`GPU 不存在：${gid}`)
-      if (!card.free && !EXPERIMENTS.some((e) => e.gpuIds.includes(gid))) {
-        // allow if currently free in runtime state
-      }
       if (!card.free) throw new Error(`GPU 已被占用：${card.name}`)
       card.free = false
     }
-    const names = gpuIds.map((id) => state.gpus.find((g) => g.id === id)?.name || id).join(', ')
+    const names = gpuIds.map((gid) => state.gpus.find((g) => g.id === gid)?.name || gid).join(', ')
     exp.logs.push({ at: now(), level: 'info', message: `创建时分配 GPU：${names}` })
   }
 
@@ -167,7 +198,6 @@ export async function allocateGpu(expId, gpuIds) {
   for (const gid of gpuIds) {
     const card = state.gpus.find((g) => g.id === gid)
     if (!card) throw new Error(`GPU 不存在：${gid}`)
-    // allow re-selecting same cards already on this exp
     const heldByOther = state.experiments.some(
       (e) => e.id !== expId && e.gpuIds.includes(gid) && e.status !== 'finished',
     )
@@ -177,7 +207,7 @@ export async function allocateGpu(expId, gpuIds) {
 
   exp.gpuIds = [...gpuIds]
   if (exp.status === 'draft') exp.status = 'ready'
-  const names = gpuIds.map((id) => state.gpus.find((g) => g.id === id)?.name || id).join(', ')
+  const names = gpuIds.map((gid) => state.gpus.find((g) => g.id === gid)?.name || gid).join(', ')
   exp.logs.push({ at: now(), level: 'info', message: `分配 GPU：${names}` })
   pushAudit({ action: '分配训练 GPU', detail: `${expId} · ${names}` })
   return clone(exp)
@@ -191,7 +221,6 @@ export async function startTrain(expId) {
   if (!exp.gpuIds.length) throw new Error('请先分配 GPU')
   if (exp.status === 'running') throw new Error('实验已在运行')
   if (exp.status === 'finished' && exp.currentEpoch >= exp.epochs) {
-    // allow restart: reset metrics
     exp.metrics = { loss: [], acc: [], map: [] }
     exp.currentEpoch = 0
     exp.finishedAt = null
@@ -229,7 +258,6 @@ export async function stopTrain(expId) {
  * @returns {{ experiment: object, point: {loss,acc,map}, done: boolean }}
  */
 export async function tickEpoch(expId) {
-  // short delay so UI stays snappy during timer ticks
   await businessDelay()
   const exp = findExp(expId)
   if (exp.status !== 'running') {
