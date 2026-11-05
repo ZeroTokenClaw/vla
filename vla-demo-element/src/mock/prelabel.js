@@ -1,6 +1,8 @@
+import { seedTextDocs, seedVisionImages, seedAcceptJobs } from './seed/prelabel'
+
 /** DataLink 智能预标 mock：文本管线、OCR/YOLO、验收向导。故意植入可修正错误便于 Diff 演示。 */
 
-export const TEXT_DOCS = [
+const HAND_TEXT_DOCS = [
   {
     id: 'DL-TXT-2026-001',
     title: '客服工单-物流改派（脱敏）',
@@ -74,11 +76,26 @@ export const TEXT_DOCS = [
   },
 ]
 
+function buildTextDocs() {
+  try {
+    return seedTextDocs(HAND_TEXT_DOCS)
+  } catch (e) {
+    console.error('[datalink] prelabel text seed failed, fallback thin', e)
+    return HAND_TEXT_DOCS.map((d) => ({
+      ...d,
+      progressPct: d.progressPct ?? 100,
+      spotCheckPass: d.spotCheckPass ?? true,
+    }))
+  }
+}
+
+export const TEXT_DOCS = buildTextDocs()
+
 export const ENTITY_TYPES = ['PERSON', 'DATE', 'ORDER_ID', 'ADDRESS', 'PHONE', 'ORG', 'OBJECT', 'LOCATION', 'TASK_ID']
 export const RELATION_TYPES = ['COMPLAINS_ABOUT', 'SHIPS_TO', 'RETURN_TO', 'PLACE_ON', 'AVOID', 'LOCATED_AT']
 export const CLASS_LABELS = ['投诉-物流延误', '投诉-包裹破损', '咨询-进度', '具身-抓取放置', '其他']
 
-export const VISION_IMAGES = [
+const HAND_VISION_IMAGES = [
   {
     id: 'DL-IMG-2026-001',
     title: '桌面抓取-铭牌 OCR + YOLO',
@@ -122,6 +139,22 @@ export const VISION_IMAGES = [
   },
 ]
 
+function buildVisionImages() {
+  try {
+    return seedVisionImages(HAND_VISION_IMAGES)
+  } catch (e) {
+    console.error('[datalink] prelabel vision seed failed, fallback thin', e)
+    return HAND_VISION_IMAGES.map((d) => ({
+      ...d,
+      batchId: d.batchId ?? 'PRE-BATCH-V01',
+      progressPct: d.progressPct ?? 100,
+      spotCheckPass: d.spotCheckPass ?? true,
+    }))
+  }
+}
+
+export const VISION_IMAGES = buildVisionImages()
+
 export const ACCEPT_STEPS = [
   { key: 'confirm', label: '确认预标', desc: '核对模型结果与样例匹配度，确认进入精标' },
   { key: 'annotate', label: '人工精标', desc: '完成漏标补标、错标修正与结构化核对' },
@@ -130,7 +163,7 @@ export const ACCEPT_STEPS = [
 ]
 
 export function createAcceptJobs() {
-  return [
+  const hand = [
     {
       id: 'DL-ACC-2026-001',
       title: '文本预标验收 · 客服工单批次',
@@ -168,4 +201,10 @@ export function createAcceptJobs() {
       status: 'in_progress',
     },
   ]
+  try {
+    return seedAcceptJobs(hand)
+  } catch (e) {
+    console.error('[datalink] prelabel accept seed failed, fallback thin', e)
+    return hand
+  }
 }

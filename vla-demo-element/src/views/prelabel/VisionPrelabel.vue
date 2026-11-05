@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -15,6 +15,10 @@ const route = useRoute()
 const router = useRouter()
 
 const list = ref([])
+const filters = reactive({ keyword: '', status: '', batchId: '' })
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
 const image = ref(null)
 const loading = ref(false)
 const runningOcr = ref(false)
@@ -29,7 +33,19 @@ const yoloDraft = ref([])
 const currentId = computed(() => route.params.id)
 
 async function loadList() {
-  list.value = await listVisionImages()
+  const res = await listVisionImages({
+    ...filters,
+    page: page.value,
+    pageSize: pageSize.value,
+  })
+  list.value = res.items
+  total.value = res.total
+  page.value = res.page
+}
+
+async function onSearch() {
+  page.value = 1
+  await loadList()
 }
 
 async function loadImage(id) {
@@ -150,13 +166,26 @@ const showYolo = computed(() => layer.value === 'yolo' || layer.value === 'both'
       <el-col :span="5">
         <el-card shadow="never" class="side">
           <template #header>
-            <div class="card-h">图像样例</div>
+            <div class="card-h">图像样例（{{ total }}）</div>
           </template>
+          <div class="side-filters">
+            <el-input v-model="filters.keyword" clearable size="small" placeholder="ID/标题" @keyup.enter="onSearch" />
+            <el-select v-model="filters.status" clearable size="small" placeholder="状态" style="width: 100%; margin-top: 6px" @change="onSearch">
+              <el-option label="ready" value="ready" />
+              <el-option label="running" value="running" />
+              <el-option label="corrected" value="corrected" />
+              <el-option label="ocr_done" value="ocr_done" />
+              <el-option label="yolo_done" value="yolo_done" />
+            </el-select>
+            <el-input v-model="filters.batchId" clearable size="small" placeholder="批次号" style="margin-top: 6px" @keyup.enter="onSearch" />
+            <el-button size="small" type="primary" style="width: 100%; margin-top: 6px" @click="onSearch">筛选</el-button>
+          </div>
           <el-menu :default-active="currentId" @select="switchImage">
             <el-menu-item v-for="item in list" :key="item.id" :index="item.id">
               <div class="doc-item">
                 <div class="doc-id">{{ item.id }}</div>
                 <div class="doc-title">{{ item.title }}</div>
+                <div class="doc-meta">{{ item.progressPct ?? 0 }}% · {{ item.spotCheckPass === false ? '抽检未过' : '抽检OK' }}</div>
                 <div class="tags">
                   <el-tag v-if="item.ocrCorrected" size="small" type="success">OCR已修</el-tag>
                   <el-tag v-if="item.yoloCorrected" size="small" type="success">YOLO已修</el-tag>
@@ -164,6 +193,18 @@ const showYolo = computed(() => layer.value === 'yolo' || layer.value === 'both'
               </div>
             </el-menu-item>
           </el-menu>
+          <div class="pager">
+            <el-pagination
+              v-model:current-page="page"
+              v-model:page-size="pageSize"
+              :total="total"
+              layout="total, prev, pager, next"
+              :pager-count="5"
+              small
+              @current-change="loadList"
+              @size-change="() => { page = 1; loadList() }"
+            />
+          </div>
         </el-card>
       </el-col>
 
@@ -281,6 +322,19 @@ const showYolo = computed(() => layer.value === 'yolo' || layer.value === 'both'
 }
 .card-h {
   font-weight: 600;
+}
+.side-filters {
+  padding: 0 8px 8px;
+}
+.pager {
+  padding: 8px 4px 4px;
+  display: flex;
+  justify-content: center;
+}
+.doc-meta {
+  font-size: 11px;
+  color: #909399;
+  margin-top: 2px;
 }
 .doc-item {
   line-height: 1.3;

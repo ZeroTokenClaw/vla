@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Select, Loading, Clock } from '@element-plus/icons-vue'
@@ -17,6 +17,10 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const jobs = ref([])
+const filters = reactive({ keyword: '', status: '' })
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
 const job = ref(null)
 const loading = ref(false)
 const advancing = ref(false)
@@ -34,7 +38,19 @@ const canFinalAccept = computed(() => ['reviewer', 'admin'].includes(auth.role))
 const currentStepMeta = computed(() => ACCEPT_STEPS[activeStepIndex.value] || ACCEPT_STEPS[0])
 
 async function loadList() {
-  jobs.value = await listAcceptJobs()
+  const res = await listAcceptJobs({
+    ...filters,
+    page: page.value,
+    pageSize: pageSize.value,
+  })
+  jobs.value = res.items
+  total.value = res.total
+  page.value = res.page
+}
+
+async function onSearch() {
+  page.value = 1
+  await loadList()
 }
 
 async function loadJob(id) {
@@ -110,8 +126,16 @@ function stepStatus(key) {
       <el-col :span="6">
         <el-card shadow="never" class="side">
           <template #header>
-            <div class="card-h">验收任务</div>
+            <div class="card-h">验收任务（{{ total }}）</div>
           </template>
+          <div class="side-filters">
+            <el-input v-model="filters.keyword" clearable size="small" placeholder="ID/标题" @keyup.enter="onSearch" />
+            <el-select v-model="filters.status" clearable size="small" placeholder="状态" style="width: 100%; margin-top: 6px" @change="onSearch">
+              <el-option label="进行中" value="in_progress" />
+              <el-option label="已验收" value="accepted" />
+            </el-select>
+            <el-button size="small" type="primary" style="width: 100%; margin-top: 6px" @click="onSearch">筛选</el-button>
+          </div>
           <el-menu :default-active="currentId" @select="switchJob">
             <el-menu-item v-for="j in jobs" :key="j.id" :index="j.id">
               <div class="doc-item">
@@ -126,6 +150,18 @@ function stepStatus(key) {
               </div>
             </el-menu-item>
           </el-menu>
+          <div class="pager">
+            <el-pagination
+              v-model:current-page="page"
+              v-model:page-size="pageSize"
+              :total="total"
+              layout="total, prev, pager, next"
+              :pager-count="5"
+              small
+              @current-change="loadList"
+              @size-change="() => { page = 1; loadList() }"
+            />
+          </div>
         </el-card>
       </el-col>
 
@@ -227,6 +263,14 @@ function stepStatus(key) {
 }
 .card-h {
   font-weight: 600;
+}
+.side-filters {
+  padding: 0 8px 8px;
+}
+.pager {
+  padding: 8px 4px 4px;
+  display: flex;
+  justify-content: center;
 }
 .doc-item {
   line-height: 1.3;

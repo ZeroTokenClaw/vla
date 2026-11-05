@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -15,6 +15,10 @@ const route = useRoute()
 const router = useRouter()
 
 const docs = ref([])
+const filters = reactive({ keyword: '', status: '', batchId: '' })
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
 const doc = ref(null)
 const loading = ref(false)
 const running = ref(false)
@@ -33,7 +37,19 @@ const draft = ref({
 const currentId = computed(() => route.params.id)
 
 async function loadList() {
-  docs.value = await listTextDocs()
+  const res = await listTextDocs({
+    ...filters,
+    page: page.value,
+    pageSize: pageSize.value,
+  })
+  docs.value = res.items
+  total.value = res.total
+  page.value = res.page
+}
+
+async function onSearch() {
+  page.value = 1
+  await loadList()
 }
 
 async function loadDoc(id) {
@@ -165,17 +181,42 @@ function fieldClass(name) {
       <el-col :span="5">
         <el-card shadow="never" class="side">
           <template #header>
-            <div class="card-h">文本样例</div>
+            <div class="card-h">文本样例（{{ total }}）</div>
           </template>
+          <div class="side-filters">
+            <el-input v-model="filters.keyword" clearable size="small" placeholder="ID/标题" @keyup.enter="onSearch" />
+            <el-select v-model="filters.status" clearable size="small" placeholder="状态" style="width: 100%; margin-top: 6px" @change="onSearch">
+              <el-option label="ready" value="ready" />
+              <el-option label="running" value="running" />
+              <el-option label="corrected" value="corrected" />
+              <el-option label="accepted" value="accepted" />
+              <el-option label="prelabeled" value="prelabeled" />
+            </el-select>
+            <el-input v-model="filters.batchId" clearable size="small" placeholder="批次号" style="margin-top: 6px" @keyup.enter="onSearch" />
+            <el-button size="small" type="primary" style="width: 100%; margin-top: 6px" @click="onSearch">筛选</el-button>
+          </div>
           <el-menu :default-active="currentId" @select="switchDoc">
             <el-menu-item v-for="d in docs" :key="d.id" :index="d.id">
               <div class="doc-item">
                 <div class="doc-id">{{ d.id }}</div>
                 <div class="doc-title">{{ d.title }}</div>
+                <div class="doc-meta">{{ d.progressPct ?? 0 }}% · {{ d.spotCheckPass === false ? '抽检未过' : '抽检OK' }}</div>
                 <el-tag v-if="d.hasCorrection" size="small" type="success">已修正</el-tag>
               </div>
             </el-menu-item>
           </el-menu>
+          <div class="pager">
+            <el-pagination
+              v-model:current-page="page"
+              v-model:page-size="pageSize"
+              :total="total"
+              layout="total, prev, pager, next"
+              :pager-count="5"
+              small
+              @current-change="loadList"
+              @size-change="() => { page = 1; loadList() }"
+            />
+          </div>
         </el-card>
       </el-col>
 
@@ -269,6 +310,19 @@ function fieldClass(name) {
 }
 .card-h {
   font-weight: 600;
+}
+.side-filters {
+  padding: 0 8px 8px;
+}
+.pager {
+  padding: 8px 4px 4px;
+  display: flex;
+  justify-content: center;
+}
+.doc-meta {
+  font-size: 11px;
+  color: #909399;
+  margin-top: 2px;
 }
 .doc-item {
   line-height: 1.3;
