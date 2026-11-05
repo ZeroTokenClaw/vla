@@ -19,6 +19,10 @@ const loading = ref(false)
 const saving = ref(false)
 const allocating = ref(false)
 const experiments = ref([])
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const listFilters = reactive({ status: null, algorithm: null, keyword: '' })
 const meta = reactive({
   algorithms: [],
   models: [],
@@ -69,7 +73,10 @@ async function refresh() {
   loading.value = true
   try {
     Object.assign(meta, listMeta())
-    experiments.value = await listExperiments()
+    const res = await listExperiments({ ...listFilters, page: page.value, pageSize: pageSize.value })
+    experiments.value = res.items
+    total.value = res.total
+    page.value = res.page
   } finally {
     loading.value = false
   }
@@ -265,7 +272,18 @@ const lmTableCols1 = [
               <n-text type="info" size="small">前缀 LM-EXP-</n-text>
             </div>
           </template>
+          <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <n-input v-model="listFilters.keyword" clearable placeholder="实验号/名称" style="width:180px" />
+            <n-select v-model="listFilters.status" clearable placeholder="状态" style="width:130px"
+              :options="[{label:'draft',value:'draft'},{label:'ready',value:'ready'},{label:'running',value:'running'},{label:'finished',value:'finished'}]" />
+            <n-button type="primary" @click="() => { page.value = 1; refresh() }">查询</n-button>
+          </div>
           <n-data-table :columns="lmTableCols1" :data="experiments" :row-key="(r) => r.id" size="small" :bordered="false" :single-line="false"></n-data-table>
+          <div style="margin-top:12px;display:flex;justify-content:flex-end">
+            <n-pagination v-model:page="page" v-model:page-size="pageSize" :item-count="total"
+              show-size-picker :page-sizes="[10,20,50]"
+              @update:page="refresh" @update:page-size="() => { page.value = 1; refresh() }" />
+          </div>
         </n-card>
       </n-gi>
     </n-grid>

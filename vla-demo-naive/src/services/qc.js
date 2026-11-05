@@ -13,16 +13,19 @@ import {
   MODALITIES,
   STATUS_FLOW,
   REJECT_REASONS,
-  PRIORITIES,
+  URGENCIES,
+  LANES,
 } from '@/mock/qc'
+import { paginate } from '@/mock/seed/paginate'
 
 const state = {
   tasks: createInitialTasks(),
   sampleRules: SAMPLE_RULES.map((r) => ({ ...r, modalities: [...r.modalities] })),
-  samplePool: createInitialSamplePool(),
+  samplePool: [],
   lastSampleRun: null,
   seq: 340,
 }
+state.samplePool = createInitialSamplePool(state.tasks)
 
 function now() {
   return dayjs().format('YYYY-MM-DD HH:mm:ss')
@@ -54,21 +57,30 @@ export function listMeta() {
     modalities: MODALITIES,
     statuses: STATUS_FLOW,
     rejectReasons: REJECT_REASONS,
-    priorities: PRIORITIES,
-    users: users.map((u) => ({ id: u.id, name: u.name, role: u.role, dept: u.dept })),
+    priorities: URGENCIES,
+    urgencies: URGENCIES,
+    lanes: LANES,
+    users: users.map((u) => ({ id: u.id, name: u.name, role: u.role, squad: u.squad })),
   }
 }
 
-export async function listQcTasks(filters = {}) {
+export async function listQcTasks(query = {}) {
   await businessDelay()
+  const { page, pageSize, status, modality, urgency, lane, keyword } = query
   let rows = [...state.tasks]
-  if (filters.status) rows = rows.filter((t) => t.status === filters.status)
-  if (filters.modality) rows = rows.filter((t) => t.modality === filters.modality)
-  if (filters.keyword) {
-    const kw = String(filters.keyword).trim()
+  if (status) rows = rows.filter((t) => t.status === status)
+  if (modality) rows = rows.filter((t) => t.modality === modality)
+  if (urgency) rows = rows.filter((t) => t.urgency === urgency)
+  if (lane) rows = rows.filter((t) => t.lane === lane)
+  if (keyword) {
+    const kw = String(keyword).trim()
     rows = rows.filter((t) => t.id.includes(kw) || t.title.includes(kw))
   }
-  return rows.map((t) => ({ ...t }))
+  const result = paginate(rows, { page, pageSize })
+  return {
+    ...result,
+    items: result.items.map((t) => ({ ...t })),
+  }
 }
 
 export async function getQcTask(id) {
@@ -97,7 +109,9 @@ export async function createQcTask(payload) {
     title: payload.title || '未命名工单',
     modality: payload.modality || 'text_ner',
     status: 'created',
-    priority: payload.priority || 'medium',
+    urgency: payload.urgency || 'normal',
+    lane: payload.lane || 'lane-alpha',
+    bounceLog: [],
     creatorId: auth.user?.id || 'u-lm-admin',
     assigneeId: null,
     collaborators: [],
@@ -183,6 +197,13 @@ export async function transition(id, toStatus, note = '', extra = {}) {
   t.updatedAt = now()
   if (toStatus === 'rejected') {
     t.rejectReason = extra.rejectReason || 'other'
+    if (!Array.isArray(t.bounceLog)) t.bounceLog = []
+    t.bounceLog.push({
+      at: now(),
+      by: auth.user?.id || 'unknown',
+      code: t.rejectReason,
+      note: note || '',
+    })
   }
   if (toStatus === 'annotating' && from === 'rejected') {
     t.rejectReason = null
@@ -298,12 +319,26 @@ export async function runSampleCheck(ruleId) {
   }
 }
 
-export async function listSamplePool(filters = {}) {
+export async function listSamplePool(query = {}) {
   await businessDelay()
+  const { page, pageSize, status, modality, keyword } = query
   let rows = [...state.samplePool]
-  if (filters.status) rows = rows.filter((s) => s.status === filters.status)
-  if (filters.modality) rows = rows.filter((s) => s.modality === filters.modality)
-  return rows
+  if (status) rows = rows.filter((s) => s.status === status)
+  if (modality) rows = rows.filter((s) => s.modality === modality)
+  if (keyword) {
+    const kw = String(keyword).trim()
+    rows = rows.filter(
+      (s) =>
+        s.id.includes(kw) ||
+        (s.title || '').includes(kw) ||
+        (s.taskId || '').includes(kw),
+    )
+  }
+  const result = paginate(rows, { page, pageSize })
+  return {
+    ...result,
+    items: result.items.map((s) => ({ ...s })),
+  }
 }
 
 export async function passSample(id) {
@@ -356,4 +391,4 @@ export async function getLastSampleRun() {
   return state.lastSampleRun ? { ...state.lastSampleRun } : null
 }
 
-export { SAMPLE_RESOURCES, MODALITIES, STATUS_FLOW, REJECT_REASONS, PRIORITIES, TRANSITIONS }
+export { SAMPLE_RESOURCES, MODALITIES, STATUS_FLOW, REJECT_REASONS, URGENCIES, LANES, TRANSITIONS }

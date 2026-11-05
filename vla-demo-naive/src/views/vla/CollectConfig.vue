@@ -13,6 +13,10 @@ const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
 const tasks = ref([])
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const filters = reactive({ status: null, scene: null, keyword: '' })
 const meta = reactive({
   modes: [],
   scenes: [],
@@ -46,7 +50,10 @@ async function refresh() {
   try {
     const m = listMeta()
     Object.assign(meta, m)
-    tasks.value = await listVlaTasks()
+    const res = await listVlaTasks({ ...filters, page: page.value, pageSize: pageSize.value })
+    tasks.value = res.items
+    total.value = res.total
+    page.value = res.page
   } finally {
     loading.value = false
   }
@@ -140,7 +147,7 @@ const lmTableCols1 = [
                 collapse-tags
                 placeholder="选择采集/标注人员"
                 style="width: 100%"
-               :options="meta.personnel.map(u => ({ label: `${u.name} · ${u.dept}`, value: u.id }))"></n-select>
+               :options="meta.personnel.map(u => ({ label: `${u.name} · ${u.squad}`, value: u.id }))"></n-select>
             </n-form-item>
             <n-form-item label="任务指令">
               <n-input
@@ -170,7 +177,20 @@ const lmTableCols1 = [
           </template>
 
           <n-empty v-if="!tasks.length && !loading" description="暂无采集任务，请先创建" />
+          <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <n-input v-model="filters.keyword" clearable placeholder="任务号/名称" style="width:180px" />
+            <n-select v-model="filters.scene" clearable placeholder="场景" style="width:140px"
+              :options="(meta.scenes||[]).map(x=>({label:x.label,value:x.value}))" />
+            <n-select v-model="filters.status" clearable placeholder="状态" style="width:120px"
+              :options="[{label:'ready',value:'ready'},{label:'annotating',value:'annotating'},{label:'done',value:'done'}]" />
+            <n-button type="primary" @click="() => { page.value = 1; refresh() }">查询</n-button>
+          </div>
           <n-data-table :columns="lmTableCols1" :data="tasks" :row-key="(r) => r.id" size="small" :bordered="false" :single-line="false"></n-data-table>
+          <div style="margin-top:12px;display:flex;justify-content:flex-end">
+            <n-pagination v-model:page="page" v-model:page-size="pageSize" :item-count="total"
+              show-size-picker :page-sizes="[10,20,50]"
+              @update:page="refresh" @update:page-size="() => { page.value = 1; refresh() }" />
+          </div>
         </n-card>
       </n-gi>
     </n-grid>

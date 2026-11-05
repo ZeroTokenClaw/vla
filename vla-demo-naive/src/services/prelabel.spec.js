@@ -42,8 +42,8 @@ describe('Prelabel services', () => {
     // find a job already at accept if any; otherwise walk a fresh one is heavy —
     // create path: use job at confirm and force by advancing is slow; instead
     // call advance when step is accept by mutating via repeated advances from ACC-003 mid-step
-    const jobs = await listAcceptJobs()
-    const job = jobs.find((j) => j.id === 'LM-ACC-2026-003')
+    const jobs = await listAcceptJobs({ page: 1, pageSize: 200 })
+    const job = jobs.items.find((j) => j.id === 'LM-ACC-2026-003')
     expect(job).toBeTruthy()
     // annotate -> qa
     await advanceAcceptStep(job.id)

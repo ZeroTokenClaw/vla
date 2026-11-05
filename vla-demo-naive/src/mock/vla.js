@@ -1,3 +1,4 @@
+import { seedVlaEpisodes } from './seed/vla'
 /** Lingmou 具身采集标注 mock：采集任务、动作模板、时间轴片段、质检问题。 */
 
 export const COLLECT_MODES = [
@@ -8,10 +9,10 @@ export const COLLECT_MODES = [
 ]
 
 export const SCENE_OPTIONS = [
-  { value: 'kitchen_counter', label: '厨房台面' },
-  { value: 'lab_bench', label: '实验台' },
-  { value: 'warehouse_bin', label: '仓拣料箱' },
-  { value: 'office_desk', label: '办公桌面' },
+  { value: 'stove_top', label: '灶台操作' },
+  { value: 'clean_bench', label: '洁净台' },
+  { value: 'tote_wall', label: '料箱墙' },
+  { value: 'dual_monitor', label: '双屏工位' },
 ]
 
 export const PLAN_OPTIONS = [
@@ -41,7 +42,7 @@ export const ISSUE_TYPES = [
 ]
 
 /** Seed collect tasks with linked multimodal assets + action spans. */
-export const VLA_TASKS = [
+const VLA_HAND = [
   {
     id: 'LM-VLA-2026-001',
     name: '仓拣-红盒抓取放置',
@@ -276,6 +277,17 @@ export const VLA_TASKS = [
     ],
   },
 ]
+
+function buildVlaTasks() {
+  try {
+    return seedVlaEpisodes(VLA_HAND)
+  } catch (e) {
+    console.error('[lingmou] vla seed failed, fallback thin', e)
+    return VLA_HAND.map((t) => ({ ...t, signal: t.signal || { dof: [], claw: [], t: [], hz: 10 } }))
+  }
+}
+
+export const VLA_TASKS = buildVlaTasks()
 
 export function nextVlaId(seq) {
   const n = String(seq).padStart(3, '0')

@@ -15,6 +15,9 @@ const route = useRoute()
 const router = useRouter()
 
 const docs = ref([])
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
 const doc = ref(null)
 const loading = ref(false)
 const running = ref(false)
@@ -33,7 +36,10 @@ const draft = ref({
 const currentId = computed(() => route.params.id)
 
 async function loadList() {
-  docs.value = await listTextDocs()
+  const res = await listTextDocs({ page: page.value, pageSize: pageSize.value })
+  docs.value = res.items
+  total.value = res.total
+  page.value = res.page
 }
 
 async function loadDoc(id) {
@@ -167,7 +173,28 @@ function fieldClass(name) {
           <template #header>
             <div class="card-h">文本样例</div>
           </template>
-          
+          <n-empty v-if="!docs.length" description="暂无样例" size="small" />
+          <div
+            v-for="d in docs"
+            :key="d.id"
+            class="side-item"
+            :class="{ active: route.params.id === d.id }"
+            @click="router.push('/prelabel/text/' + d.id)"
+          >
+            <div class="side-id">{{ d.id }}</div>
+            <div class="side-title">{{ d.title }}</div>
+          </div>
+          <div style="margin-top:12px;display:flex;justify-content:flex-end">
+            <n-pagination
+              v-model:page="page"
+              v-model:page-size="pageSize"
+              :item-count="total"
+              size="small"
+              :page-slot="5"
+              @update:page="loadList"
+              @update:page-size="() => { page.value = 1; loadList() }"
+            />
+          </div>
         </n-card>
       </n-gi>
 
@@ -349,4 +376,15 @@ function fieldClass(name) {
   margin-bottom: 6px;
   flex-wrap: wrap;
 }
+.side-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 6px;
+  border: 1px solid transparent;
+}
+.side-item:hover { background: #f5f5f5; }
+.side-item.active { background: #eef3ff; border-color: #c3d4ff; }
+.side-id { font-size: 11px; color: #6b7280; }
+.side-title { font-size: 13px; }
 </style>

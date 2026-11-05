@@ -1,3 +1,4 @@
+import { seedQcTasks, seedSamplePool } from './seed/qc'
 /** Lingmou QC mock: multimodal tickets, workflow, sample-check. */
 
 export const MODALITIES = [
@@ -38,10 +39,16 @@ export const REJECT_REASONS = [
   { value: 'other', label: '其他' },
 ]
 
-export const PRIORITIES = [
-  { value: 'high', label: '高' },
-  { value: 'medium', label: '中' },
-  { value: 'low', label: '低' },
+export const URGENCIES = [
+  { value: 'urgent', label: '紧急' },
+  { value: 'normal', label: '普通' },
+  { value: 'backlog', label: '积压' },
+]
+
+export const LANES = [
+  { value: 'lane-alpha', label: 'Lane Alpha' },
+  { value: 'lane-beta', label: 'Lane Beta' },
+  { value: 'lane-gamma', label: 'Lane Gamma' },
 ]
 
 /** Sample media + annotation payloads per modality (desensitized). */
@@ -121,14 +128,16 @@ function clone(v) {
 }
 
 /** In-memory mutable store seeded once. */
+
 export function createInitialTasks() {
-  return [
+  const hand = [
     {
       id: 'LM-2026-1104-0312',
       title: '客服工单实体抽取返修',
       modality: 'text_ner',
       status: 'annotating',
-      priority: 'high',
+      urgency: 'urgent',
+      lane: 'lane-alpha',
       creatorId: 'u-lm-admin',
       assigneeId: 'u-lm-annotator',
       collaborators: ['u-lm-annotator', 'u-lm-annotator-2'],
@@ -167,7 +176,8 @@ export function createInitialTasks() {
       title: '桌面抓取语义分割初标',
       modality: 'seg',
       status: 'reviewing',
-      priority: 'medium',
+      urgency: 'normal',
+      lane: 'lane-beta',
       creatorId: 'u-lm-admin',
       assigneeId: 'u-lm-annotator-2',
       collaborators: ['u-lm-annotator-2', 'u-lm-reviewer'],
@@ -200,7 +210,8 @@ export function createInitialTasks() {
       title: '指令语音切片质检',
       modality: 'audio_slice',
       status: 'final_review',
-      priority: 'high',
+      urgency: 'urgent',
+      lane: 'lane-alpha',
       creatorId: 'u-lm-admin',
       assigneeId: 'u-lm-annotator',
       collaborators: ['u-lm-annotator', 'u-lm-reviewer'],
@@ -234,7 +245,8 @@ export function createInitialTasks() {
       title: '料箱分拣视频目标检测',
       modality: 'video_det',
       status: 'rejected',
-      priority: 'high',
+      urgency: 'urgent',
+      lane: 'lane-alpha',
       creatorId: 'u-lm-admin',
       assigneeId: 'u-lm-annotator',
       collaborators: ['u-lm-annotator', 'u-lm-annotator-2', 'u-lm-reviewer'],
@@ -272,7 +284,8 @@ export function createInitialTasks() {
       title: '桌面点云分割样例入库',
       modality: 'point_seg',
       status: 'assigned',
-      priority: 'medium',
+      urgency: 'normal',
+      lane: 'lane-beta',
       creatorId: 'u-lm-admin',
       assigneeId: 'u-lm-annotator-2',
       collaborators: ['u-lm-annotator-2'],
@@ -295,7 +308,8 @@ export function createInitialTasks() {
       title: '历史文本NER归档抽检',
       modality: 'text_ner',
       status: 'done',
-      priority: 'low',
+      urgency: 'backlog',
+      lane: 'lane-gamma',
       creatorId: 'u-lm-admin',
       assigneeId: 'u-lm-annotator',
       collaborators: ['u-lm-annotator', 'u-lm-reviewer'],
@@ -315,6 +329,17 @@ export function createInitialTasks() {
       refluxed: true,
     },
   ]
+  try {
+    return seedQcTasks(hand)
+  } catch (e) {
+    console.error('[lingmou] qc seed failed, fallback thin', e)
+    return hand.map((t) => ({
+      ...t,
+      urgency: t.urgency || 'normal',
+      lane: t.lane || 'lane-alpha',
+      bounceLog: t.bounceLog || [],
+    }))
+  }
 }
 
 export const SAMPLE_RULES = [
@@ -372,12 +397,12 @@ export const SPEC_SECTIONS = [
   {
     id: 'spec-7',
     title: '7. 抽检与回流',
-    body: '抽检不合格须填写驳回原因；返修后重新进入初审。合格样本写入回流库，供训练集引用。',
+    body: '抽检不合格须填写驳回原因并写入 bounceLog；返修后重新进入初审。合格样本写入回流库，供训练侧 corpora 引用。',
   },
 ]
 
-export function createInitialSamplePool() {
-  return [
+export function createInitialSamplePool(tasks = []) {
+  const hand = [
     {
       id: 'SPL-LM-1001',
       taskId: 'LM-2026-1101-0204',
@@ -444,4 +469,10 @@ export function createInitialSamplePool() {
       refluxed: false,
     },
   ]
+  try {
+    return seedSamplePool(hand, tasks)
+  } catch (e) {
+    console.error('[lingmou] sample pool seed failed, fallback thin', e)
+    return hand
+  }
 }

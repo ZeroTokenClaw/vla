@@ -45,7 +45,7 @@ const lmTableCols1 = [
 ]
 
 async function loadList() {
-  experiments.value = await listExperiments()
+  experiments.value = (await listExperiments({ page: 1, pageSize: 200 })).items
 }
 
 async function loadAll(id) {

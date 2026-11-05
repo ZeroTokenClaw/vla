@@ -5,28 +5,28 @@ export const users = [
     name: '周明轩',
     role: 'admin',
     account: 'demo.admin',
-    dept: '具身数据中心',
+    squad: '具身数据中心',
   },
   {
     id: 'u-lm-reviewer',
     name: '林晓萱',
     role: 'reviewer',
     account: 'demo.reviewer',
-    dept: '会话质检组',
+    squad: '质检哨',
   },
   {
     id: 'u-lm-annotator',
     name: '陈思远',
     role: 'annotator',
     account: 'demo.annotator',
-    dept: '关键帧标注组',
+    squad: '夜班标注舱',
   },
   {
     id: 'u-lm-annotator-2',
     name: '赵雨桐',
     role: 'annotator',
     account: 'zhao.yt',
-    dept: '关键帧标注组',
+    squad: '夜班标注舱',
   },
 ]
 
