@@ -1,4 +1,5 @@
 import { createPrng } from './prng'
+import { MEDIA_MANIFEST } from './media-manifest.js'
 
 function makeTrajectory(rng, frames = 24, dof = 7) {
   const joints = []
@@ -19,6 +20,7 @@ function makeTrajectory(rng, frames = 24, dof = 7) {
 /**
  * Element DataLink VLA episodes - independent seed; trajectory keys:
  * trajectory.{joints,gripper,tSec}
+ * Media paths cycle ep_01..ep_06 (not a shared single mp4).
  */
 export function seedVlaEpisodes(hand, seed = 0xD11A7E01) {
   const rng = createPrng(seed ^ 0x3333)
@@ -26,9 +28,10 @@ export function seedVlaEpisodes(hand, seed = 0xD11A7E01) {
   const plans = ['pick_place_std', 'open_drawer', 'wipe_surface', 'sort_parts']
   const modes = ['teleop', 'scripted', 'human_demo', 'mixed']
   const statuses = ['ready', 'annotating', 'done']
-  const videos = [1, 2, 3, 4, 5, 6].map((n) => ({
-    videoUrl: `/samples/video/ep_0${n}.mp4`,
-    imageUrl: `/samples/video/ep_0${n}_poster.jpg`,
+  const videos = MEDIA_MANIFEST.videos.map((v) => ({
+    videoUrl: v.path,
+    imageUrl: v.poster,
+    durationSec: v.durationSec,
   }))
 
   const out = hand.map((t, idx) => {
@@ -40,6 +43,7 @@ export function seedVlaEpisodes(hand, seed = 0xD11A7E01) {
       trajectory: t.trajectory || makeTrajectory(rng, Math.min(30, t.totalFrames || 24)),
       videoUrl: usesSharedBin ? media.videoUrl : t.videoUrl,
       imageUrl: usesSharedBin ? media.imageUrl : t.imageUrl,
+      durationSec: usesSharedBin ? media.durationSec : (t.durationSec ?? media.durationSec),
     }
   })
 
@@ -72,7 +76,7 @@ export function seedVlaEpisodes(hand, seed = 0xD11A7E01) {
       imageUrl: media.imageUrl,
       fps: 10,
       totalFrames: frames,
-      durationSec: Number((frames / 10).toFixed(1)),
+      durationSec: media.durationSec,
       status,
       createdAt: `2026-11-0${day} ${String(rng.int(8, 18)).padStart(2, '0')}:${String(rng.int(0, 59)).padStart(2, '0')}:00`,
       actions: [],
@@ -85,4 +89,3 @@ export function seedVlaEpisodes(hand, seed = 0xD11A7E01) {
 }
 
 export { makeTrajectory }
-
