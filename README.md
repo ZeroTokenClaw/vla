@@ -5,6 +5,8 @@
 设计文档：`docs/superpowers/specs/2026-11-04-vla-four-style-demos-design.md`  
 实现计划：`docs/superpowers/plans/2026-11-04-vla-four-vendor-demos.md`  
 验收清单：`docs/superpowers/plans/acceptance-checklist.md`
+厚数据加厚规格：`docs/superpowers/specs/2026-11-04-vla-demo-data-enrichment-design.md`  
+厚数据实现计划：`docs/superpowers/plans/2026-11-05-vla-demo-data-enrichment.md`
 
 ## 四套对比
 
@@ -58,6 +60,8 @@ pnpm install && pnpm dev
 各项目 README 内有「评分点 → 菜单路径 → 演示要点」对照表与录屏脚本（`docs/record-script-*.md`）。
 
 ## 测试与构建
+
+各套 `pnpm test` 含 seed≥50 与分页筛选用例；媒体可用 `node scripts/generate-samples.mjs` 重生。
 
 在各自目录执行：
 

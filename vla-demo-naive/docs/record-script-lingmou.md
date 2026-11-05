@@ -30,3 +30,13 @@
 3. 指标面板导出 CSV/Excel 报表。
 
 全程留意底部 Console 日志与 LM- 前缀任务号。
+
+## 厚数据加录（分页 / 筛选 / 详情）
+
+口播字段：**urgency / lane / signal / corpora / snapshots**。
+
+1. 打开质控舱任务列表：总数 ≥50；筛选状态、模态、**urgency=urgent**、**lane**；翻到第 2 页再回第 1 页。
+2. 打开含驳回链的会话/工单，读出 urgency 与驳回原因；留意底部 Console。
+3. 预标引擎文本列表翻页；点开 `LM-TXT-2026-001`，演示 ADDRESS→ORG 的故意 Diff。
+4. 采集台列表翻页；打开新 episode，播放 `ep_0N.mp4`（非全员同一条）；展开轨迹 **`signal.dof` / `claw` / `t`**。
+5. 训练核实验列表筛 status=finished；打开 `LM-EXP-2026-001`，展示 **`corpora.part` / `tag`**、**`snapshots`**、**`scoreSheet`**、**`mixMatrix`**，滚动长 **`consoleLines`**。

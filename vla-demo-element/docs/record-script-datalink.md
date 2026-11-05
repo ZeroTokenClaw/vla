@@ -109,4 +109,12 @@
 
 - 语音切片务必点播放，视频务必点播放，避免仍像静态占位。  
 - 导出动作要露出下载文件名。  
-- 驳回、校验失败、权限拒绝各至少出镜一次，体现「真实系统」而非纯 happy path。  
+- 驳回、校验失败、权限拒绝各至少出镜一次，体现「真实系统」而非纯 happy path。
+
+## 厚数据加录（分页 / 筛选 / 详情）
+
+1. 打开「质控工单列表」：展示总数 ≥50；筛选状态=已驳回、优先级 `priority`=高；翻到第 2 页再回第 1 页。
+2. 打开含 `rejectChain` 的驳回工单详情，读出驳回原因码（如 `label_miss`）。
+3. 预标注文本列表翻页；点开 `DL-TXT-2026-001`，演示 ADDRESS 被标成 ORG 的 Diff 修正。
+4. VLA 采集列表翻页；打开任一新 episode，播放 `ep_0N.mp4`（确认不是全员同一条料箱视频）；展开轨迹 JSON（`trajectory.joints` / `gripper` / `tSec`）。
+5. 训练实验列表筛选 status=finished；打开 `DL-EXP-2026-001`，展示 `datasets.split` / `versionPin`、`checkpoints`、`valTable`、`confusionMatrix`，滚动长 `logs`。
