@@ -160,6 +160,66 @@ async function onSave() {
 
 const modelJson = computed(() => JSON.stringify(pipelineResult.value || {}, null, 2))
 
+const entityStats = computed(() => {
+  const map = {}
+  for (const e of draft.value.entities || []) map[e.type] = (map[e.type] || 0) + 1
+  return Object.entries(map).map(([type, count]) => ({ type, count }))
+})
+
+const lowConfEntities = computed(() =>
+  (draft.value.entities || []).filter((e) => e.conf != null && Number(e.conf) < 0.75),
+)
+
+const diffRows = computed(() => {
+  if (!doc.value || !pipelineResult.value) return []
+  const model = pipelineResult.value
+  const gold = doc.value.goldHint || {}
+  const rows = []
+  const draftCls = draft.value.classifyLabel
+  const modelCls = model.classify?.label
+  if (modelCls || draftCls) {
+    rows.push({
+      field: '文本分类',
+      model: modelCls || '—',
+      draft: draftCls || '—',
+      hint: gold.classify || '—',
+      status: draftCls && modelCls && draftCls !== modelCls ? '已修正' : '一致',
+    })
+  }
+  for (const e of model.entities || []) {
+    const draftEnt = (draft.value.entities || []).find((x) => x.id === e.id)
+    const fix = gold.entityFix?.[e.id]
+    const status =
+      fix && draftEnt && draftEnt.type === fix
+        ? '已修正'
+        : draftEnt && draftEnt.type !== e.type
+          ? '草稿差异'
+          : '一致'
+    rows.push({
+      field: `实体 ${e.text}`,
+      model: e.type,
+      draft: draftEnt?.type || '—',
+      hint: fix || '—',
+      status,
+    })
+  }
+  for (const r of model.relations || []) {
+    const draftRel = (draft.value.relations || []).find((x) => x.id === r.id)
+    const fix = gold.relationFix?.[r.id]
+    rows.push({
+      field: `关系 ${r.head}→${r.tail}`,
+      model: r.type,
+      draft: draftRel?.type || '—',
+      hint: fix || '—',
+      status: fix && draftRel?.type === fix ? '已修正' : draftRel && draftRel.type !== r.type ? '草稿差异' : '一致',
+    })
+  }
+  if (gold.note) {
+    rows.push({ field: '备注', model: '—', draft: '—', hint: gold.note, status: '提示' })
+  }
+  return rows
+})
+
 function fieldClass(name) {
   return changedFields.value.includes(name) ? 'field-changed' : ''
 }
@@ -183,6 +243,11 @@ function fieldClass(name) {
           >
             <div class="side-id">{{ d.id }}</div>
             <div class="side-title">{{ d.title }}</div>
+            <div class="side-meta">
+              <n-tag size="tiny" :bordered="false">{{ d.status }}</n-tag>
+              <n-tag v-if="d.hasCorrection" size="tiny" type="success" :bordered="false">已修正</n-tag>
+              <span v-if="d.progressPct != null">{{ d.progressPct }}%</span>
+            </div>
           </div>
           <div style="margin-top:12px;display:flex;justify-content:flex-end">
             <n-pagination
@@ -221,10 +286,57 @@ function fieldClass(name) {
             :title="`已高亮变更字段：${changedFields.join('、')}`"
           />
 
+          <div v-if="doc" class="sum-bar">
+            <n-tag :bordered="false">实体 {{ draft.entities.length }}</n-tag>
+            <n-tag :bordered="false">关系 {{ draft.relations.length }}</n-tag>
+            <n-tag type="warning" :bordered="false">低置信 {{ lowConfEntities.length }}</n-tag>
+            <n-tag v-for="s in entityStats" :key="s.type" size="small" type="info" :bordered="false">
+              {{ s.type }} · {{ s.count }}
+            </n-tag>
+          </div>
+
+          <n-card v-if="diffRows.length" size="small" title="模型 vs 人工 Diff（演示）" :bordered="false" class="diff-card">
+            <n-data-table
+              size="small"
+              :data="diffRows"
+              :columns="[
+                { title: '字段', key: 'field', width: 140 },
+                { title: '模型', key: 'model' },
+                { title: '当前草稿', key: 'draft' },
+                { title: '金标准提示', key: 'hint' },
+                {
+                  title: '状态',
+                  key: 'status',
+                  width: 90,
+                  render: (r) => r.status,
+                },
+              ]"
+            />
+          </n-card>
+
           <n-grid cols="24"  x-gap="12" y-gap="12" class="tri">
             <n-gi :span="8">
-              <div class="pane-title">原始文本</div>
-              <div class="pane raw">{{ doc?.rawText }}</div>
+              <div class="pane-title">原始文本 · 实体高亮</div>
+              <div class="pane raw">
+                <template v-if="draft.entities?.length">
+                  <p class="hl-hint">共 {{ draft.entities.length }} 实体 / {{ draft.relations.length }} 关系 · 分类：{{ draft.classifyLabel || '—' }}</p>
+                  <div class="chip-wrap">
+                    <n-tag
+                      v-for="e in draft.entities"
+                      :key="e.id"
+                      size="small"
+                      :bordered="false"
+                      type="info"
+                      class="chip"
+                    >
+                      {{ e.text }}
+                      <span class="chip-t">{{ e.type }}</span>
+                      <span v-if="e.conf != null" class="chip-c">{{ Number(e.conf).toFixed(2) }}</span>
+                    </n-tag>
+                  </div>
+                </template>
+                <div class="raw-body">{{ doc?.rawText }}</div>
+              </div>
             </n-gi>
             <n-gi :span="8">
               <div class="pane-title">模型 JSON</div>
@@ -314,7 +426,14 @@ function fieldClass(name) {
   display: flex;
   gap: 8px;
 }
+.diff-card { margin-bottom: 12px; background: #14141c; }
 .diff-alert {
+  margin-bottom: 10px;
+}
+.sum-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 10px;
 }
 .tri {
@@ -387,4 +506,17 @@ function fieldClass(name) {
 .side-item.active { background: #eef3ff; border-color: #c3d4ff; }
 .side-id { font-size: 11px; color: #6b7280; }
 .side-title { font-size: 13px; }
+.side-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #6b7280;
+}
+.hl-hint { margin: 0 0 8px; font-size: 12px; color: #6b7280; }
+.chip-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.chip-t { margin-left: 4px; opacity: 0.75; }
+.chip-c { margin-left: 4px; color: #18a058; font-weight: 600; }
+.raw-body { white-space: pre-wrap; }
 </style>

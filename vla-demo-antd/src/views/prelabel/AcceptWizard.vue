@@ -176,23 +176,48 @@ function mapTagColor(t) {
               </li>
             </ul>
 
+            <a-descriptions size="small" bordered :column="2" style="margin-bottom: 12px">
+              <a-descriptions-item label="任务号">{{ job.id }}</a-descriptions-item>
+              <a-descriptions-item label="当前步">{{ job.step }}</a-descriptions-item>
+              <a-descriptions-item label="来源类型">{{ job.sourceType }}</a-descriptions-item>
+              <a-descriptions-item label="来源 ID">{{ job.sourceId }}</a-descriptions-item>
+              <a-descriptions-item label="已完成步骤" :span="2">
+                <a-tag v-for="s in job.stepDone || []" :key="s" color="success">{{ s }}</a-tag>
+                <span v-if="!(job.stepDone || []).length">—</span>
+              </a-descriptions-item>
+            </a-descriptions>
+
             <div v-if="job.step === 'confirm'" class="hint">
-              请确认预标注结果与业务样例一致，确认后进入人工精标。
+              <a-checkbox-group
+                :value="['schema', 'batch', 'model']"
+                :options="[
+                  { label: '样例与 Schema 对齐', value: 'schema' },
+                  { label: '批次样本齐全', value: 'batch' },
+                  { label: '模型版本可追溯', value: 'model' },
+                ]"
+              />
+              <p style="margin-top: 8px">请确认预标注结果与业务样例一致，确认后进入人工精标。</p>
             </div>
             <div v-else-if="job.step === 'annotate'" class="hint">
-              请在「文本预标 / 视觉预标」页完成人工修正后，回到本向导继续。
+              请在「文本预标 / OCR / YOLO」页完成人工修正后，回到本向导继续。
               <div class="links">
-                <a-button  type="link" @click="router.push('/prelabel/')">打开文本预标</a-button>
-                <a-button  type="link" @click="router.push('/prelabel/vision')">打开视觉预标</a-button>
+                <a-button type="link" @click="router.push('/prelabel/text')">打开文本预标</a-button>
+                <a-button type="link" @click="router.push('/prelabel/ocr')">打开 OCR</a-button>
+                <a-button type="link" @click="router.push('/prelabel/yolo')">打开 YOLO</a-button>
               </div>
             </div>
             <div v-else-if="job.step === 'qa'" class="hint">
               <div class="label">质检意见</div>
               <a-textarea
                 v-model:value="qaNote"
-                
                 :rows="3"
-                placeholder="例如：实体类型已修正，关系抽取合格，允许验收" />
+                placeholder="例如：实体类型已修正，关系抽取合格，允许验收"
+              />
+              <a-row :gutter="8" style="margin-top: 8px">
+                <a-col :span="8"><a-statistic title="伪造准确率" :value="0.93" :precision="2" /></a-col>
+                <a-col :span="8"><a-statistic title="修正条目" :value="7" /></a-col>
+                <a-col :span="8"><a-statistic title="低置信度" :value="3" /></a-col>
+              </a-row>
             </div>
             <div v-else class="hint">
               <a-alert
@@ -202,7 +227,11 @@ function mapTagColor(t) {
                   canFinalAccept
                     ? `当前角色「${auth.role}」可执行最终验收`
                     : '当前为标注员，请切换审核员/管理员后验收'
-                " />
+                "
+              />
+              <a-card size="small" style="margin-top: 8px" title="验收归档预览（伪造）">
+                <code>model_output + human_correction + final_accept → Dataset reflux</code>
+              </a-card>
             </div>
 
             <div class="footer">

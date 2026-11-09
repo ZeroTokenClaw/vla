@@ -6,9 +6,14 @@ const route = useRoute()
 const router = useRouter()
 
 const tabs = [
-  { path: '/vla/collect', label: '采集配置', match: (p) => p.startsWith('/vla/collect') || p === '/vla' },
-  { path: '/vla/timeline', label: '时间轴标注', match: (p) => p.startsWith('/vla/timeline') },
-  { path: '/vla/quality', label: '样本质检', match: (p) => p.startsWith('/vla/quality') }
+  { path: '/vla/collect', label: '采集任务', match: (p) => p.startsWith('/vla/collect') || p === '/vla' },
+  { path: '/vla/devices', label: '设备台账', match: (p) => p.startsWith('/vla/devices') },
+  { path: '/vla/scenes', label: '场景方案', match: (p) => p.startsWith('/vla/scenes') },
+  { path: '/vla/templates', label: '动作模板', match: (p) => p.startsWith('/vla/templates') },
+  { path: '/vla/timeline', label: '联动标注', match: (p) => p.startsWith('/vla/timeline') },
+  { path: '/vla/action-analysis', label: '序列分析', match: (p) => p.startsWith('/vla/action-analysis') },
+  { path: '/vla/consistency', label: '指令一致性', match: (p) => p.startsWith('/vla/consistency') },
+  { path: '/vla/quality', label: '质量门禁', match: (p) => p.startsWith('/vla/quality') },
 ]
 
 const activeTab = computed(() => {
@@ -25,8 +30,8 @@ function onTab(path) {
   <div class="hub">
     <div class="hub-head">
       <div>
-        <h2>采集台</h2>
-        <p class="sub">会话配置 · 关键帧时间轴 · 动作片段 · 样本质检</p>
+        <h2>VLA 行为理解中心</h2>
+        <p class="sub">采集配置 · 多模态联动 · 动作语义 · 指令一致性 · 质量门禁</p>
       </div>
     </div>
 
@@ -44,4 +49,3 @@ h2 { margin:0; font-size:20px; color:#e8e8ed; }
 .sub { margin:6px 0 0; color:#8b8b97; font-size:13px; }
 .hub-tabs { margin-bottom:14px; }
 </style>
-

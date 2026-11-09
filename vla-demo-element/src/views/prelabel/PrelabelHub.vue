@@ -8,6 +8,7 @@ const tabs = [
   { path: '/prelabel/text', label: '文本预标', match: (p) => p.startsWith('/prelabel/text') || p === '/prelabel' },
   { path: '/prelabel/vision', label: '视觉预标', match: (p) => p.startsWith('/prelabel/vision') },
   { path: '/prelabel/accept', label: '验收向导', match: (p) => p.startsWith('/prelabel/accept') },
+  { path: '/prelabel/jobs', label: '预标任务队列', match: (p) => p.startsWith('/prelabel/jobs') },
 ]
 
 const activeTab = computed(() => {

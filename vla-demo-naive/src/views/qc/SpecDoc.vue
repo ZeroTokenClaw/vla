@@ -58,8 +58,11 @@ onMounted(async () => {
 .body {
   margin: 0;
   line-height: 1.7;
-  color: #374151;
+  color: #c8c8d4;
   font-size: 14px;
+}
+:deep(.n-card) {
+  background: #14141c;
 }
 .foot {
   font-size: 12px;

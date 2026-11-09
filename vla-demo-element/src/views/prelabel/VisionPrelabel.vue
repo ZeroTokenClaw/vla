@@ -8,6 +8,7 @@ import {
   runOcr,
   runYolo,
   saveCorrection,
+  listMeta,
 } from '@/services/prelabel'
 import ProgressMock from '@/components/ProgressMock.vue'
 
@@ -26,6 +27,11 @@ const runningYolo = ref(false)
 const saving = ref(false)
 const layer = ref('both') // ocr | yolo | both
 const selectedBoxId = ref(null)
+const meta = listMeta()
+const ocrModelId = ref(meta.models.find((m) => m.type === 'ocr')?.id || '')
+const yoloModelId = ref(meta.models.find((m) => m.type === 'yolo')?.id || '')
+const confThres = ref(0.35)
+const lastRunMeta = ref(null)
 
 const ocrDraft = ref([])
 const yoloDraft = ref([])
@@ -84,8 +90,17 @@ async function onRunOcr() {
   if (!image.value) return
   runningOcr.value = true
   try {
-    ocrDraft.value = await runOcr(image.value.id)
-    ElMessage.success('OCR 预标注完成')
+    const res = await runOcr(image.value.id, {
+      modelId: ocrModelId.value,
+      params: { confThres: confThres.value },
+    })
+    ocrDraft.value = res.items || res
+    lastRunMeta.value = {
+      kind: 'OCR',
+      modelId: res.modelId,
+      modelVersion: res.modelVersion,
+    }
+    ElMessage.success(`OCR 完成 · ${res.modelId}@${res.modelVersion}`)
     await loadList()
   } catch (e) {
     ElMessage.error(e.message)
@@ -98,9 +113,18 @@ async function onRunYolo() {
   if (!image.value) return
   runningYolo.value = true
   try {
-    yoloDraft.value = await runYolo(image.value.id)
+    const res = await runYolo(image.value.id, {
+      modelId: yoloModelId.value,
+      params: { confThres: confThres.value, imgsz: 640 },
+    })
+    yoloDraft.value = res.items || res
     selectedBoxId.value = yoloDraft.value[0]?.id || null
-    ElMessage.success('YOLO 预标注完成')
+    lastRunMeta.value = {
+      kind: 'YOLO',
+      modelId: res.modelId,
+      modelVersion: res.modelVersion,
+    }
+    ElMessage.success(`YOLO 完成 · ${res.modelId}@${res.modelVersion}`)
     await loadList()
   } catch (e) {
     ElMessage.error(e.message)
@@ -221,8 +245,28 @@ const showYolo = computed(() => layer.value === 'yolo' || layer.value === 'both'
                 <el-radio-button value="ocr">仅 OCR</el-radio-button>
                 <el-radio-button value="yolo">仅 YOLO</el-radio-button>
               </el-radio-group>
+              <el-select v-model="ocrModelId" size="small" style="width: 160px" placeholder="OCR 模型">
+                <el-option
+                  v-for="m in meta.models.filter((x) => x.type === 'ocr')"
+                  :key="m.id"
+                  :label="`${m.name}`"
+                  :value="m.id"
+                />
+              </el-select>
+              <el-select v-model="yoloModelId" size="small" style="width: 160px" placeholder="YOLO 模型">
+                <el-option
+                  v-for="m in meta.models.filter((x) => x.type === 'yolo')"
+                  :key="m.id"
+                  :label="`${m.name}`"
+                  :value="m.id"
+                />
+              </el-select>
+              <el-input-number v-model="confThres" size="small" :min="0.1" :max="0.95" :step="0.05" />
               <el-button type="primary" :loading="runningOcr" @click="onRunOcr">运行 OCR</el-button>
               <el-button type="primary" :loading="runningYolo" @click="onRunYolo">运行 YOLO</el-button>
+              <el-tag v-if="lastRunMeta" size="small" type="info">
+                {{ lastRunMeta.kind }} {{ lastRunMeta.modelId }}@{{ lastRunMeta.modelVersion }}
+              </el-tag>
               <el-button type="success" :loading="saving" :disabled="!image" @click="onSave">保存修正</el-button>
             </div>
           </div>

@@ -11,6 +11,7 @@ import {
   SCENE_OPTIONS,
   PLAN_OPTIONS,
   ISSUE_TYPES,
+  COLLECT_DEVICES,
   nextVlaId,
 } from '@/mock/vla'
 import { users } from '@/mock/users'
@@ -35,6 +36,7 @@ const state = {
     issuesDetected: false,
     filteredOut: [],
   })),
+  devices: COLLECT_DEVICES.map((d) => clone(d)),
   seq: VLA_TASKS.length + 1,
 }
 
@@ -45,13 +47,57 @@ export function listMeta() {
     plans: PLAN_OPTIONS,
     actionTemplates: ACTION_TEMPLATES,
     issueTypes: ISSUE_TYPES,
+    devices: state.devices.map((d) => ({
+      id: d.id,
+      name: d.name,
+      type: d.type,
+      typeLabel: d.typeLabel,
+      status: d.status,
+    })),
     personnel: users.map((u) => ({ id: u.id, name: u.name, role: u.role, squad: u.squad })),
+  }
+}
+
+export async function listDevices(query = {}) {
+  await businessDelay()
+  let rows = state.devices.map((d) => ({ ...d, boundTaskIds: [...(d.boundTaskIds || [])] }))
+  if (query.status) rows = rows.filter((d) => d.status === query.status)
+  if (query.type) rows = rows.filter((d) => d.type === query.type)
+  if (query.keyword) {
+    const kw = String(query.keyword).trim().toLowerCase()
+    rows = rows.filter(
+      (d) =>
+        d.id.toLowerCase().includes(kw) ||
+        d.name.toLowerCase().includes(kw) ||
+        String(d.sn || '')
+          .toLowerCase()
+          .includes(kw),
+    )
+  }
+  return paginate(rows, { page: query.page, pageSize: query.pageSize })
+}
+
+export async function getCollectStats() {
+  await businessDelay()
+  const tasks = state.tasks
+  const targetCount = tasks.reduce((s, t) => s + (t.targetCount || 20), 0)
+  const collectedCount = tasks.reduce((s, t) => s + (t.collectedCount || (t.status === 'done' ? t.targetCount || 20 : t.actions?.length ? 5 : 0)), 0)
+  const online = state.devices.filter((d) => d.status === 'online' || d.status === 'busy').length
+  return {
+    deviceTotal: state.devices.length,
+    deviceOnline: online,
+    taskTotal: tasks.length,
+    targetCount,
+    collectedCount,
+    progressPct: targetCount ? Math.min(100, Math.round((collectedCount / targetCount) * 100)) : 0,
+    generatedAt: now(),
+    sourceMode: 'demo',
   }
 }
 
 export async function listVlaTasks(query = {}) {
   await businessDelay()
-  const { page, pageSize, status, scene, keyword } = query
+  const { page, pageSize, status, scene, mode, keyword } = query
   let rows = state.tasks.map((t) => ({
     id: t.id,
     name: t.name,
@@ -68,9 +114,15 @@ export async function listVlaTasks(query = {}) {
     issueCount: (t.issues || t.issuesSeed || []).length,
     issuesDetected: t.issuesDetected,
     personnelIds: [...(t.personnelIds || [])],
+    deviceIds: [...(t.deviceIds || [])],
+    targetCount: t.targetCount || 20,
+    collectedCount:
+      t.collectedCount ??
+      (t.status === 'done' ? t.targetCount || 20 : Math.min(t.targetCount || 20, (t.actions || []).length ? 8 : 0)),
   }))
   if (status) rows = rows.filter((t) => t.status === status)
   if (scene) rows = rows.filter((t) => t.scene === scene)
+  if (mode) rows = rows.filter((t) => t.mode === mode)
   if (keyword) {
     const kw = String(keyword).trim()
     rows = rows.filter((t) => t.id.includes(kw) || t.name.includes(kw))
@@ -100,6 +152,14 @@ export async function createCollectTask(config) {
 
   const id = nextVlaId(state.seq++)
   const templates = ACTION_TEMPLATES.filter((a) => config.actionTemplateIds.includes(a.id))
+  const deviceIds = Array.isArray(config.deviceIds) ? [...config.deviceIds] : []
+  for (const did of deviceIds) {
+    const dev = state.devices.find((d) => d.id === did)
+    if (!dev) throw new Error(`设备不存在：${did}`)
+    if (!dev.boundTaskIds.includes(id)) dev.boundTaskIds.push(id)
+  }
+  const epN = String(((state.seq - 2) % 6) + 1).padStart(2, '0')
+  const targetCount = Number(config.targetCount) > 0 ? Number(config.targetCount) : 20
   const task = {
     id,
     name: config.name.trim(),
@@ -108,11 +168,16 @@ export async function createCollectTask(config) {
     mode: config.mode,
     actionTemplateIds: [...config.actionTemplateIds],
     personnelIds: [...config.personnelIds],
+    deviceIds,
+    targetCount,
+    collectedCount: 0,
+    dataTypes: config.dataTypes?.length ? [...config.dataTypes] : ['video', 'action'],
+    qualityRequirement: config.qualityRequirement?.trim() || '画面稳定、关键帧清晰、动作与指令一致',
     instruction:
       config.instruction?.trim() ||
       `采集任务「${config.name.trim()}」：按所选动作模板完成示范并标注起止帧。`,
-    imageUrl: '/samples/video/bin_pick_poster.jpg',
-    videoUrl: '/samples/video/bin_pick.mp4',
+    imageUrl: `/samples/video/ep_${epN}_poster.jpg`,
+    videoUrl: `/samples/video/ep_${epN}.mp4`,
     fps: 10,
     totalFrames: 100,
     durationSec: 10,
@@ -120,7 +185,14 @@ export async function createCollectTask(config) {
     createdAt: now(),
     actions: [],
     issuesSeed: [],
-    signal: { dof: [], claw: [], t: [], hz: 10 },
+    signal: {
+      dof: Array.from({ length: 20 }, (_, i) =>
+        Array.from({ length: 7 }, (__, j) => Number((Math.sin(i / 4 + j) * 0.4 + j * 0.05).toFixed(4))),
+      ),
+      claw: Array.from({ length: 20 }, (_, i) => Number((i < 8 ? 0.1 : i < 14 ? 0.85 : 0.2).toFixed(3))),
+      t: Array.from({ length: 20 }, (_, i) => Number((i / 10).toFixed(2))),
+      hz: 10,
+    },
     issues: [],
     issuesDetected: false,
     filteredOut: [],
@@ -129,7 +201,7 @@ export async function createCollectTask(config) {
   state.tasks.unshift(task)
   pushAudit({
     action: '创建具身采集任务',
-    detail: `${id} · ${task.name} · 模式 ${config.mode} · 人员 ${config.personnelIds.length}`,
+    detail: `${id} · ${task.name} · 模式 ${config.mode} · 设备 ${deviceIds.length} · 人员 ${config.personnelIds.length}`,
   })
   return clone(task)
 }
@@ -254,11 +326,37 @@ export async function detectIssues(taskId) {
         },
       ]
 
-  t.issues = seeded.map((i) => ({
-    ...i,
-    unqualified: false,
-    filtered: false,
-  }))
+  const suggestMap = {
+    jitter: '建议降低遥操作速度或启用末端阻尼；复核 F±5 区间',
+    occlusion: '建议补采侧视/腕部视角；遮挡段可标记不合格',
+    blur: '建议提高快门/补光；关键节点附近避免急停急起',
+    missing: '建议检查传感器同步与录制通道完整性',
+    mismatch: '建议核对指令文案与动作序列关键节点是否对齐',
+  }
+  t.issues = seeded.map((i) => {
+    const start = i.startFrame ?? Math.max(0, (i.frame || 0) - 5)
+    const end = i.endFrame ?? Math.min(t.totalFrames || start + 10, (i.frame || 0) + 8)
+    return {
+      ...i,
+      startFrame: start,
+      endFrame: end,
+      timestamp: `${((start / (t.fps || 30)) || 0).toFixed(1)}s–${((end / (t.fps || 30)) || 0).toFixed(1)}s`,
+      suggestion: i.suggestion || suggestMap[i.type] || '人工复核',
+      evidence: i.evidence || t.imageUrl || '/samples/video/bin_pick_poster.jpg',
+      metric:
+        i.metric ||
+        {
+          jitter: { opticalFlow: 12.4, thresh: 8.0 },
+          occlusion: { coverRatio: 0.46, thresh: 0.4 },
+          blur: { laplacianVar: 38, thresh: 60 },
+          missing: { dropMs: 400, channels: ['torque'] },
+          mismatch: { consistency: 0.52, thresh: 0.75 },
+        }[i.type] ||
+        {},
+      unqualified: false,
+      filtered: false,
+    }
+  })
   t.issuesDetected = true
   t.filteredOut = []
 
@@ -429,4 +527,4 @@ export function buildVlaExportFilename(taskId, format, timestamp = dayjs().forma
   return `${base}.${ext}`
 }
 
-export { ISSUE_TYPES, ACTION_TEMPLATES, COLLECT_MODES, SCENE_OPTIONS, PLAN_OPTIONS }
+export { ISSUE_TYPES, ACTION_TEMPLATES, COLLECT_MODES, SCENE_OPTIONS, PLAN_OPTIONS, COLLECT_DEVICES }

@@ -1,6 +1,7 @@
 <script setup>
 import { message } from '@/ui/discrete'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
+import { NButton, NInputNumber, NSelect, NSpace, NSwitch, NTag } from 'naive-ui'
 import {
   listSampleRules,
   updateSampleRule,
@@ -132,11 +133,128 @@ function statusType(s) {
     }[s] || 'info'
   )
 }
+const rejectOpts = (REJECT_REASONS || []).map((r) =>
+  typeof r === 'string' ? { label: r, value: r } : { label: r.label || r.value, value: r.value || r.key },
+)
+
 const lmTableCols1 = [
-  
+  { title: '规则号', key: 'id', width: 120 },
+  { title: '名称', key: 'name', ellipsis: { tooltip: true } },
+  {
+    title: '抽检比例',
+    key: 'ratio',
+    width: 120,
+    render: (r) =>
+      h(NInputNumber, {
+        value: r.ratio,
+        min: 0.01,
+        max: 1,
+        step: 0.05,
+        size: 'tiny',
+        disabled: !canConfig.value,
+        onUpdateValue: (v) => {
+          r.ratio = v
+        },
+      }),
+  },
+  {
+    title: '最少条数',
+    key: 'minSamples',
+    width: 100,
+    render: (r) =>
+      h(NInputNumber, {
+        value: r.minSamples,
+        min: 1,
+        max: 200,
+        size: 'tiny',
+        disabled: !canConfig.value,
+        onUpdateValue: (v) => {
+          r.minSamples = v
+        },
+      }),
+  },
+  {
+    title: '启用',
+    key: 'enabled',
+    width: 70,
+    render: (r) =>
+      h(NSwitch, {
+        value: r.enabled,
+        size: 'small',
+        disabled: !canConfig.value,
+        onUpdateValue: (v) => {
+          r.enabled = v
+        },
+      }),
+  },
+  {
+    title: '模态',
+    key: 'modalities',
+    width: 140,
+    render: (r) => (r.modalities || []).map((m) => getModalityMeta(m)?.short || m).join(', '),
+  },
+  {
+    title: '操作',
+    key: 'act',
+    width: 160,
+    render: (r) =>
+      h(NSpace, { size: 4 }, {
+        default: () => [
+          h(NButton, { size: 'tiny', type: 'primary', secondary: true, disabled: !canConfig.value, onClick: () => saveRule(r) }, { default: () => '保存' }),
+          h(NButton, { size: 'tiny', type: 'warning', secondary: true, onClick: () => runRule(r.id) }, { default: () => '抽检' }),
+        ],
+      }),
+  },
 ]
+
 const lmTableCols2 = [
-  
+  { title: '样本号', key: 'id', width: 130 },
+  { title: '标题', key: 'title', ellipsis: { tooltip: true } },
+  {
+    title: '模态',
+    key: 'modality',
+    width: 90,
+    render: (r) => getModalityMeta(r.modality)?.short || r.modality,
+  },
+  { title: '关联工单', key: 'taskId', width: 150 },
+  {
+    title: '状态',
+    key: 'status',
+    width: 90,
+    render: (r) =>
+      h(NTag, { size: 'small', type: statusType(r.status) === 'danger' ? 'error' : statusType(r.status), bordered: false }, { default: () => statusLabel(r.status) }),
+  },
+  {
+    title: '驳回原因',
+    key: 'reason',
+    width: 140,
+    render: (r) => {
+      if (r.status !== 'checking' && r.status !== 'pending' && r.status !== 'fail') return r.reason || '—'
+      return h(NSelect, {
+        value: rejectMap[r.id] || r.reason || 'spec_violate',
+        size: 'tiny',
+        options: rejectOpts,
+        style: 'width:120px',
+        onUpdateValue: (v) => {
+          rejectMap[r.id] = v
+        },
+      })
+    },
+  },
+  {
+    title: '操作',
+    key: 'act',
+    width: 150,
+    render: (r) => {
+      if (r.status === 'refluxed' || r.status === 'pass') return '—'
+      return h(NSpace, { size: 4 }, {
+        default: () => [
+          h(NButton, { size: 'tiny', type: 'success', secondary: true, onClick: () => onPass(r.id) }, { default: () => '合格' }),
+          h(NButton, { size: 'tiny', type: 'error', secondary: true, onClick: () => onReject(r.id) }, { default: () => '不合格' }),
+        ],
+      })
+    },
+  },
 ]
 </script>
 
@@ -187,10 +305,11 @@ const lmTableCols2 = [
 }
 .stats {
   margin-bottom: 12px;
-  background: #fff;
+  background: #14141c;
   padding: 16px;
   border-radius: 8px;
 }
+:deep(.n-card) { background: #14141c; }
 .mb {
   margin-bottom: 12px;
 }

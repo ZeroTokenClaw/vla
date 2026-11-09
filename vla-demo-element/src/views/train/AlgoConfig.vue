@@ -32,6 +32,7 @@ const meta = reactive({
   models: [],
   gpus: [],
   augmentOptions: [],
+  datasets: [],
 })
 
 const statusOptions = [
@@ -53,6 +54,7 @@ const form = reactive({
   augment: true,
   augmentOps: ['flip', 'color_jitter'],
   gpuIds: [],
+  datasetIds: [],
 })
 
 const allocForm = reactive({
@@ -101,6 +103,14 @@ async function refresh() {
 }
 
 async function onSearch() {
+  page.value = 1
+  await refresh()
+}
+
+async function onResetFilters() {
+  filters.keyword = ''
+  filters.status = ''
+  filters.algorithm = ''
   page.value = 1
   await refresh()
 }
@@ -264,6 +274,23 @@ onMounted(refresh)
                 />
               </el-select>
             </el-form-item>
+            <el-form-item label="数据集版本">
+              <el-select
+                v-model="form.datasetIds"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                placeholder="绑定回流/发布数据集版本"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="d in meta.datasets"
+                  :key="d.id"
+                  :label="`${d.name} · ${d.versionPin} · ${d.split} · ${d.sampleCount}`"
+                  :value="d.id"
+                />
+              </el-select>
+            </el-form-item>
             <el-form-item label="GPU 分配">
               <el-select
                 v-model="form.gpuIds"
@@ -370,16 +397,7 @@ onMounted(refresh)
             </el-form-item>
             <el-form-item>
               <el-button type="primary" @click="onSearch">筛选</el-button>
-              <el-button
-                @click="
-                  filters.keyword = ''
-                  filters.status = ''
-                  filters.algorithm = ''
-                  onSearch()
-                "
-              >
-                重置
-              </el-button>
+              <el-button @click="onResetFilters">重置</el-button>
             </el-form-item>
           </el-form>
 

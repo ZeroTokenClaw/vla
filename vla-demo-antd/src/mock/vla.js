@@ -60,6 +60,18 @@ const HAND_VLA_TASKS = [
     durationSec: 12,
     status: 'annotating',
     createdAt: '2026-11-03 10:18:00',
+    deviceIds: ['DEV-CAM-01', 'DEV-CAM-02', 'DEV-ARM-01'],
+    qualityRequirement: '无遮挡>80%时长；指令-动作一致分≥0.75',
+    signal: {
+      dof: Array.from({ length: 24 }, (_, i) =>
+        Array.from({ length: 7 }, (__, j) => Number((Math.sin(i / 5 + j * 0.4) * 0.35 + 0.1 * j).toFixed(4))),
+      ),
+      claw: Array.from({ length: 24 }, (_, i) =>
+        Number((i < 6 ? 0.12 : i < 10 ? 0.9 : i < 18 ? 0.88 : 0.15).toFixed(3)),
+      ),
+      t: Array.from({ length: 24 }, (_, i) => Number((i / 10).toFixed(2))),
+      hz: 10,
+    },
     actions: [
       {
         id: 'act-1',

@@ -1,0 +1,1044 @@
+﻿import dayjs from 'dayjs'
+import { businessDelay } from './delay'
+import { pushAudit } from '@/stores/audit'
+import { useAuthStore } from '@/stores/auth'
+import {
+  TEXT_DOCS,
+  VISION_IMAGES,
+  ACCEPT_STEPS,
+  createAcceptJobs,
+  ENTITY_TYPES,
+  RELATION_TYPES,
+  CLASS_LABELS,
+} from '@/mock/prelabel'
+
+const state = {
+  texts: TEXT_DOCS.map((d) => ({
+    ...d,
+    model: JSON.parse(JSON.stringify(d.model)),
+    corrected: null,
+    changeLog: [],
+  })),
+  visions: VISION_IMAGES.map((v) => ({
+    ...v,
+    ocr: JSON.parse(JSON.stringify(v.ocrModel)),
+    yolo: JSON.parse(JSON.stringify(v.yoloModel)),
+    ocrCorrected: false,
+    yoloCorrected: false,
+    changeLog: [],
+  })),
+  accepts: createAcceptJobs(),
+}
+
+function now() {
+  return dayjs().format('YYYY-MM-DD HH:mm:ss')
+}
+
+function actorName() {
+  const auth = useAuthStore()
+  return auth.user?.name || '绯荤粺'
+}
+
+function clone(x) {
+  return JSON.parse(JSON.stringify(x))
+}
+
+export function listMeta() {
+  return {
+    entityTypes: ENTITY_TYPES,
+    relationTypes: RELATION_TYPES,
+    classLabels: CLASS_LABELS,
+    acceptSteps: ACCEPT_STEPS,
+  }
+}
+
+export async function listTextDocs() {
+  await businessDelay()
+  return state.texts.map((d) => ({
+    id: d.id,
+    title: d.title,
+    batchId: d.batchId,
+    status: d.status,
+    hasCorrection: !!d.corrected,
+  }))
+}
+
+export async function getTextDoc(docId) {
+  await businessDelay()
+  const d = state.texts.find((x) => x.id === docId)
+  if (!d) throw new Error(`鏂囨湰鏍蜂緥涓嶅瓨鍦細${docId}`)
+  return {
+    id: d.id,
+    title: d.title,
+    batchId: d.batchId,
+    status: d.status,
+    rawText: d.rawText,
+    model: clone(d.model),
+    corrected: d.corrected ? clone(d.corrected) : null,
+    changeLog: [...d.changeLog],
+    goldHint: d.goldHint,
+  }
+}
+
+/** 璺戞枃鏈鏍囩绾匡細鍒嗙被 / NER / 鍏崇郴 / 缁撴瀯鍖?*/
+export async function runTextPipeline(docId) {
+  await businessDelay()
+  const d = state.texts.find((x) => x.id === docId)
+  if (!d) throw new Error(`鏂囨湰鏍蜂緥涓嶅瓨鍦細${docId}`)
+  d.status = 'prelabeled'
+  pushAudit({
+    action: '杩愯鏂囨湰棰勬爣绠＄嚎',
+    detail: `${docId} 路 鍒嗙被/NER/鍏崇郴/缁撴瀯鍖朻,
+  })
+  return {
+    classify: clone(d.model.classify),
+    entities: clone(d.model.entities),
+    relations: clone(d.model.relations),
+    structured: clone(d.model.structured),
+  }
+}
+
+export async function listVisionImages() {
+  await businessDelay()
+  return state.visions.map((v) => ({
+    id: v.id,
+    title: v.title,
+    imageUrl: v.imageUrl,
+    status: v.status,
+    ocrCorrected: v.ocrCorrected,
+    yoloCorrected: v.yoloCorrected,
+  }))
+}
+
+export async function getVisionImage(imageId) {
+  await businessDelay()
+  const v = state.visions.find((x) => x.id === imageId)
+  if (!v) throw new Error(`鍥惧儚鏍蜂緥涓嶅瓨鍦細${imageId}`)
+  return {
+    id: v.id,
+    title: v.title,
+    imageUrl: v.imageUrl,
+    width: v.width,
+    height: v.height,
+    status: v.status,
+    ocr: clone(v.ocr),
+    yolo: clone(v.yolo),
+    labelSet: [...v.labelSet],
+    ocrCorrected: v.ocrCorrected,
+    yoloCorrected: v.yoloCorrected,
+    changeLog: [...v.changeLog],
+  }
+}
+
+export async function runOcr(imageId) {
+  await businessDelay()
+  const v = state.visions.find((x) => x.id === imageId)
+  if (!v) throw new Error(`鍥惧儚鏍蜂緥涓嶅瓨鍦細${imageId}`)
+  // reset to model seed for demo re-run feel, then mark status
+  v.ocr = clone(v.ocrModel)
+  v.status = 'ocr_done'
+  pushAudit({ action: '杩愯 OCR 棰勬爣', detail: `${imageId} 路 ${v.ocr.length} 鏉 })
+  return clone(v.ocr)
+}
+
+export async function runYolo(imageId) {
+  await businessDelay()
+  const v = state.visions.find((x) => x.id === imageId)
+  if (!v) throw new Error(`鍥惧儚鏍蜂緥涓嶅瓨鍦細${imageId}`)
+  v.yolo = clone(v.yoloModel)
+  v.status = 'yolo_done'
+  pushAudit({ action: '杩愯 YOLO 棰勬爣', detail: `${imageId} 路 ${v.yolo.length} 妗哷 })
+  return clone(v.yolo)
+}
+
+/**
+ * 淇濆瓨浜哄伐淇銆? * id: ORN-TXT-* | ORN-IMG-*
+ * patch:
+ *  - text: { classify?, entities?, relations?, structured? }
+ *  - vision: { ocr?, yolo? }
+ */
+export async function saveCorrection(id, patch = {}) {
+  await businessDelay()
+  const auth = useAuthStore()
+
+  const text = state.texts.find((x) => x.id === id)
+  if (text) {
+    const before = text.corrected ? clone(text.corrected) : clone(text.model)
+    const next = {
+      classify: patch.classify ? clone(patch.classify) : clone(before.classify),
+      entities: patch.entities ? clone(patch.entities) : clone(before.entities),
+      relations: patch.relations ? clone(patch.relations) : clone(before.relations),
+      structured: patch.structured ? clone(patch.structured) : clone(before.structured),
+    }
+    const changed = diffTextFields(before, next)
+    text.corrected = next
+    text.status = 'corrected'
+    text.changeLog.unshift({
+      at: now(),
+      actor: actorName(),
+      fields: changed,
+    })
+    pushAudit({
+      action: '淇濆瓨鏂囨湰浜哄伐淇',
+      detail: `${id} 路 鍙樻洿 ${changed.join(',') || '鏃?}`,
+    })
+    return { id, kind: 'text', corrected: clone(next), changedFields: changed }
+  }
+
+  const vision = state.visions.find((x) => x.id === id)
+  if (vision) {
+    const changed = []
+    if (patch.ocr) {
+      vision.ocr = clone(patch.ocr)
+      vision.ocrCorrected = true
+      changed.push('ocr')
+    }
+    if (patch.yolo) {
+      vision.yolo = clone(patch.yolo)
+      vision.yoloCorrected = true
+      changed.push('yolo')
+    }
+    vision.status = 'corrected'
+    vision.changeLog.unshift({ at: now(), actor: actorName(), fields: changed })
+    pushAudit({
+      action: '淇濆瓨瑙嗚浜哄伐淇',
+      detail: `${id} 路 鍙樻洿 ${changed.join(',') || '鏃?}`,
+    })
+    return {
+      id,
+      kind: 'vision',
+      ocr: clone(vision.ocr),
+      yolo: clone(vision.yolo),
+      changedFields: changed,
+    }
+  }
+
+  throw new Error(`棰勬爣瀵硅薄涓嶅瓨鍦細${id}`)
+}
+
+function diffTextFields(before, after) {
+  const fields = []
+  if (JSON.stringify(before.classify) !== JSON.stringify(after.classify)) fields.push('classify')
+  if (JSON.stringify(before.entities) !== JSON.stringify(after.entities)) fields.push('entities')
+  if (JSON.stringify(before.relations) !== JSON.stringify(after.relations)) fields.push('relations')
+  if (JSON.stringify(before.structured) !== JSON.stringify(after.structured)) fields.push('structured')
+  return fields
+}
+
+export async function listAcceptJobs() {
+  await businessDelay()
+  return state.accepts.map((j) => ({ ...j, stepDone: [...j.stepDone] }))
+}
+
+export async function getAcceptJob(id) {
+  await businessDelay()
+  const j = state.accepts.find((x) => x.id === id)
+  if (!j) throw new Error(`楠屾敹浠诲姟涓嶅瓨鍦細${id}`)
+  return { ...j, stepDone: [...j.stepDone] }
+}
+
+/**
+ * 鎺ㄨ繘楠屾敹鍚戝涓€姝ャ€? * steps: confirm 鈫?annotate 鈫?qa 鈫?accept
+ * 鏈€缁?accept 浠?reviewer/admin 鍙墽琛屻€? */
+export async function advanceAcceptStep(id, { qaNote } = {}) {
+  await businessDelay()
+  const auth = useAuthStore()
+  const j = state.accepts.find((x) => x.id === id)
+  if (!j) throw new Error(`楠屾敹浠诲姟涓嶅瓨鍦細${id}`)
+  if (j.status === 'accepted') throw new Error('浠诲姟宸查獙鏀跺畬鎴?)
+
+  const order = ACCEPT_STEPS.map((s) => s.key)
+  const idx = order.indexOf(j.step)
+  if (idx < 0) throw new Error(`鏈煡姝ラ锛?{j.step}`)
+
+  if (j.step === 'qa' && qaNote != null) j.qaNote = qaNote
+
+  // completing current step
+  if (!j.stepDone.includes(j.step)) j.stepDone.push(j.step)
+
+  const isLast = idx === order.length - 1
+  if (isLast) {
+    if (!['reviewer', 'admin'].includes(auth.role)) {
+      throw new Error('浠呭鏍稿憳鎴栫鐞嗗憳鍙渶缁堥獙鏀?)
+    }
+    j.status = 'accepted'
+    j.acceptedAt = now()
+    j.acceptedBy = actorName()
+    pushAudit({ action: '棰勬爣缁撴灉楠屾敹閫氳繃', detail: `${id} 路 ${j.title}` })
+    return { ...j, stepDone: [...j.stepDone] }
+  }
+
+  j.step = order[idx + 1]
+  pushAudit({
+    action: `楠屾敹鎺ㄨ繘锛?{ACCEPT_STEPS[idx].label}`,
+    detail: `${id} 鈫?${ACCEPT_STEPS[idx + 1].label}`,
+  })
+  return { ...j, stepDone: [...j.stepDone] }
+}
+
+export { TEXT_DOCS, VISION_IMAGES, ACCEPT_STEPS, ENTITY_TYPES, RELATION_TYPES, CLASS_LABELS }
+
+import dayjs from 'dayjs'
+import { businessDelay } from './delay'
+import { pushAudit } from '@/stores/audit'
+import { useAuthStore } from '@/stores/auth'
+import { exportJSON, exportCSV, exportExcel } from '@/utils/exportFiles'
+import {
+  VLA_TASKS,
+  ACTION_TEMPLATES,
+  COLLECT_MODES,
+  SCENE_OPTIONS,
+  PLAN_OPTIONS,
+  ISSUE_TYPES,
+  nextVlaId,
+} from '@/mock/vla'
+import { users } from '@/mock/users'
+
+function clone(x) {
+  return JSON.parse(JSON.stringify(x))
+}
+
+function now() {
+  return dayjs().format('YYYY-MM-DD HH:mm:ss')
+}
+
+function actorName() {
+  const auth = useAuthStore()
+  return auth.user?.name || '绯荤粺'
+}
+
+const state = {
+  tasks: VLA_TASKS.map((t) => ({
+    ...clone(t),
+    issues: [],
+    issuesDetected: false,
+    filteredOut: [],
+  })),
+  seq: VLA_TASKS.length + 1,
+}
+
+export function listMeta() {
+  return {
+    modes: COLLECT_MODES,
+    scenes: SCENE_OPTIONS,
+    plans: PLAN_OPTIONS,
+    actionTemplates: ACTION_TEMPLATES,
+    issueTypes: ISSUE_TYPES,
+    personnel: users.map((u) => ({ id: u.id, name: u.name, role: u.role, dept: u.dept })),
+  }
+}
+
+export async function listVlaTasks() {
+  await businessDelay()
+  return state.tasks.map((t) => ({
+    id: t.id,
+    name: t.name,
+    scene: t.scene,
+    plan: t.plan,
+    mode: t.mode,
+    status: t.status,
+    createdAt: t.createdAt,
+    actionCount: t.actions.length,
+    issueCount: t.issues.length,
+    issuesDetected: t.issuesDetected,
+    personnelIds: [...t.personnelIds],
+  }))
+}
+
+export async function getVlaTask(taskId) {
+  await businessDelay()
+  const t = state.tasks.find((x) => x.id === taskId)
+  if (!t) throw new Error(`閲囬泦浠诲姟涓嶅瓨鍦細${taskId}`)
+  return clone(t)
+}
+
+/**
+ * 鍒涘缓閲囬泦浠诲姟锛氫换鍔″悕銆佸満鏅€佹柟妗堛€佹ā寮忋€佸姩浣滄ā鏉裤€佷汉鍛樸€? * @param {{ name: string, scene: string, plan: string, mode: string, actionTemplateIds: string[], personnelIds: string[], instruction?: string }} config
+ */
+export async function createCollectTask(config) {
+  await businessDelay()
+  if (!config?.name?.trim()) throw new Error('璇峰～鍐欎换鍔″悕绉?)
+  if (!config.scene) throw new Error('璇烽€夋嫨鍦烘櫙淇℃伅')
+  if (!config.plan) throw new Error('璇烽€夋嫨閲囬泦鏂规')
+  if (!config.mode) throw new Error('璇烽€夋嫨閲囬泦妯″紡')
+  if (!config.actionTemplateIds?.length) throw new Error('璇疯嚦灏戦€夋嫨涓€涓姩浣滄ā鏉?)
+  if (!config.personnelIds?.length) throw new Error('璇疯嚦灏戦厤缃竴鍚嶉噰闆嗕汉鍛?)
+
+  const id = nextVlaId(state.seq++)
+  const templates = ACTION_TEMPLATES.filter((a) => config.actionTemplateIds.includes(a.id))
+  const task = {
+    id,
+    name: config.name.trim(),
+    scene: config.scene,
+    plan: config.plan,
+    mode: config.mode,
+    actionTemplateIds: [...config.actionTemplateIds],
+    personnelIds: [...config.personnelIds],
+    instruction:
+      config.instruction?.trim() ||
+      `閲囬泦浠诲姟銆?{config.name.trim()}銆嶏細鎸夋墍閫夊姩浣滄ā鏉垮畬鎴愮ず鑼冨苟鏍囨敞璧锋甯с€俙,
+    imageUrl: '/samples/video/bin_pick_poster.jpg',
+    videoUrl: '/samples/video/bin_pick.mp4',
+    fps: 10,
+    totalFrames: 100,
+    durationSec: 10,
+    status: 'ready',
+    createdAt: now(),
+    actions: [],
+    issuesSeed: [],
+    issues: [],
+    issuesDetected: false,
+    filteredOut: [],
+    templateSnapshot: templates.map((t) => ({ ...t })),
+  }
+  state.tasks.unshift(task)
+  pushAudit({
+    action: '鍒涘缓鍏疯韩閲囬泦浠诲姟',
+    detail: `${id} 路 ${task.name} 路 妯″紡 ${config.mode} 路 浜哄憳 ${config.personnelIds.length}`,
+  })
+  return clone(task)
+}
+
+/**
+ * 淇濆瓨鍔ㄤ綔璧锋甯ф爣娉ㄣ€? * @param {{ taskId: string, startFrame: number, endFrame: number, action: string, instruction: string, keyNode?: boolean, id?: string }} payload
+ */
+export async function saveActionSpan(payload) {
+  await businessDelay()
+  const t = state.tasks.find((x) => x.id === payload.taskId)
+  if (!t) throw new Error(`閲囬泦浠诲姟涓嶅瓨鍦細${payload.taskId}`)
+
+  const startFrame = Number(payload.startFrame)
+  const endFrame = Number(payload.endFrame)
+  if (!Number.isFinite(startFrame) || !Number.isFinite(endFrame)) {
+    throw new Error('璧锋甯у繀椤讳负鏁板瓧')
+  }
+  if (startFrame < 0 || endFrame > t.totalFrames) {
+    throw new Error(`甯ц寖鍥撮渶鍦?0鈥?{t.totalFrames}`)
+  }
+  if (endFrame <= startFrame) throw new Error('缁撴潫甯у繀椤诲ぇ浜庤捣濮嬪抚')
+  if (!payload.action) throw new Error('璇峰～鍐欏姩浣滅紪鐮?)
+
+  const tpl = ACTION_TEMPLATES.find((a) => a.code === payload.action)
+  const actionLabel = tpl?.name || payload.action
+
+  if (payload.id) {
+    const row = t.actions.find((a) => a.id === payload.id)
+    if (!row) throw new Error(`鍔ㄤ綔鐗囨涓嶅瓨鍦細${payload.id}`)
+    Object.assign(row, {
+      startFrame,
+      endFrame,
+      action: payload.action,
+      actionLabel,
+      instruction: payload.instruction || '',
+      keyNode: !!payload.keyNode,
+    })
+  } else {
+    t.actions.push({
+      id: `act-${Date.now()}-${t.actions.length + 1}`,
+      startFrame,
+      endFrame,
+      action: payload.action,
+      actionLabel,
+      instruction: payload.instruction || '',
+      keyNode: !!payload.keyNode,
+    })
+  }
+
+  t.actions.sort((a, b) => a.startFrame - b.startFrame)
+  t.status = 'annotating'
+  pushAudit({
+    action: '淇濆瓨鍔ㄤ綔璧锋甯?,
+    detail: `${t.id} 路 ${actionLabel} 路 F${startFrame}-F${endFrame}`,
+  })
+  return clone(t)
+}
+
+export async function deleteActionSpan(taskId, actionId) {
+  await businessDelay()
+  const t = state.tasks.find((x) => x.id === taskId)
+  if (!t) throw new Error(`閲囬泦浠诲姟涓嶅瓨鍦細${taskId}`)
+  const before = t.actions.length
+  t.actions = t.actions.filter((a) => a.id !== actionId)
+  if (t.actions.length === before) throw new Error(`鍔ㄤ綔鐗囨涓嶅瓨鍦細${actionId}`)
+  pushAudit({ action: '鍒犻櫎鍔ㄤ綔鐗囨', detail: `${taskId} 路 ${actionId}` })
+  return clone(t)
+}
+
+/**
+ * 妫€娴嬫姈鍔?閬尅/妯＄硦/缂哄け/涓嶅尮閰嶃€? * @returns {{ issues: object[], summary: Record<string, number> }}
+ */
+export async function detectIssues(taskId) {
+  await businessDelay()
+  const t = state.tasks.find((x) => x.id === taskId)
+  if (!t) throw new Error(`閲囬泦浠诲姟涓嶅瓨鍦細${taskId}`)
+
+  const seeded = t.issuesSeed?.length
+    ? clone(t.issuesSeed)
+    : [
+        {
+          id: `iss-auto-${Date.now()}-1`,
+          type: 'jitter',
+          frame: Math.floor(t.totalFrames * 0.4),
+          severity: 'medium',
+          message: '妫€娴嬪埌鏈鎶栧姩瓒呴槇鍊?,
+          sampleId: `${t.id}-S1`,
+        },
+        {
+          id: `iss-auto-${Date.now()}-2`,
+          type: 'occlusion',
+          frame: Math.floor(t.totalFrames * 0.55),
+          severity: 'high',
+          message: '鐩爣琚伄鎸¤秴杩囬槇鍊?,
+          sampleId: `${t.id}-S2`,
+        },
+        {
+          id: `iss-auto-${Date.now()}-3`,
+          type: 'blur',
+          frame: Math.floor(t.totalFrames * 0.7),
+          severity: 'low',
+          message: '鍏抽敭甯фā绯?,
+          sampleId: `${t.id}-S3`,
+        },
+        {
+          id: `iss-auto-${Date.now()}-4`,
+          type: 'missing',
+          frame: Math.floor(t.totalFrames * 0.85),
+          severity: 'medium',
+          message: '浼犳劅鍣ㄩ€氶亾鐭椂缂哄け',
+          sampleId: `${t.id}-S4`,
+        },
+        {
+          id: `iss-auto-${Date.now()}-5`,
+          type: 'mismatch',
+          frame: 0,
+          severity: 'high',
+          message: '鏍锋湰杞ㄨ抗涓庝换鍔℃寚浠や笉鍖归厤',
+          sampleId: `${t.id}-S5`,
+        },
+      ]
+
+  t.issues = seeded.map((i) => ({
+    ...i,
+    unqualified: false,
+    filtered: false,
+  }))
+  t.issuesDetected = true
+  t.filteredOut = []
+
+  const summary = {}
+  for (const it of ISSUE_TYPES) summary[it.key] = 0
+  for (const i of t.issues) summary[i.type] = (summary[i.type] || 0) + 1
+
+  pushAudit({
+    action: '杩愯鏍锋湰璐ㄦ妫€娴?,
+    detail: `${taskId} 路 妫€鍑?${t.issues.length} 鏉?路 鎶栧姩/閬尅/妯＄硦/缂哄け/涓嶅尮閰峘,
+  })
+  return { issues: clone(t.issues), summary }
+}
+
+/** 鏍囪涓嶅悎鏍兼牱鏈?*/
+export async function markUnqualified(taskId, issueIds) {
+  await businessDelay()
+  const t = state.tasks.find((x) => x.id === taskId)
+  if (!t) throw new Error(`閲囬泦浠诲姟涓嶅瓨鍦細${taskId}`)
+  const set = new Set(issueIds || [])
+  let count = 0
+  for (const i of t.issues) {
+    if (set.has(i.id)) {
+      i.unqualified = true
+      count += 1
+    }
+  }
+  pushAudit({
+    action: '鏍囪涓嶅悎鏍兼牱鏈?,
+    detail: `${taskId} 路 ${count} 鏉,
+  })
+  return clone(t.issues)
+}
+
+/** 杩囨护锛氶殣钘忓凡鏍囪涓嶅悎鏍肩殑鏍锋湰 */
+export async function setFilterUnqualified(taskId, enabled) {
+  await businessDelay()
+  const t = state.tasks.find((x) => x.id === taskId)
+  if (!t) throw new Error(`閲囬泦浠诲姟涓嶅瓨鍦細${taskId}`)
+  for (const i of t.issues) {
+    i.filtered = enabled ? !!i.unqualified : false
+  }
+  t.filteredOut = enabled ? t.issues.filter((i) => i.unqualified).map((i) => i.id) : []
+  pushAudit({
+    action: enabled ? '寮€鍚笉鍚堟牸杩囨护' : '鍏抽棴涓嶅悎鏍艰繃婊?,
+    detail: `${taskId} 路 闅愯棌 ${t.filteredOut.length} 鏉,
+  })
+  return {
+    issues: clone(t.issues),
+    visible: clone(t.issues.filter((i) => !i.filtered)),
+    filteredOut: [...t.filteredOut],
+  }
+}
+
+function buildExportPayload(task) {
+  const sceneLabel = SCENE_OPTIONS.find((s) => s.value === task.scene)?.label || task.scene
+  const planLabel = PLAN_OPTIONS.find((p) => p.value === task.plan)?.label || task.plan
+  const modeLabel = COLLECT_MODES.find((m) => m.value === task.mode)?.label || task.mode
+  const personnel = task.personnelIds.map((id) => {
+    const u = users.find((x) => x.id === id)
+    return u ? `${u.name}(${u.role})` : id
+  })
+
+  return {
+    meta: {
+      taskId: task.id,
+      name: task.name,
+      scene: sceneLabel,
+      plan: planLabel,
+      mode: modeLabel,
+      instruction: task.instruction,
+      fps: task.fps,
+      totalFrames: task.totalFrames,
+      personnel,
+      exportedAt: now(),
+      exportedBy: actorName(),
+      product: 'Orion Annotate',
+    },
+    actions: task.actions.map((a) => ({
+      id: a.id,
+      startFrame: a.startFrame,
+      endFrame: a.endFrame,
+      action: a.action,
+      actionLabel: a.actionLabel,
+      instruction: a.instruction,
+      keyNode: a.keyNode,
+    })),
+    issues: task.issues.map((i) => ({
+      id: i.id,
+      type: i.type,
+      frame: i.frame,
+      severity: i.severity,
+      message: i.message,
+      sampleId: i.sampleId,
+      unqualified: !!i.unqualified,
+    })),
+  }
+}
+
+function buildExportRows(task) {
+  if (task.actions.length === 0) {
+    return [
+      {
+        taskId: task.id,
+        taskName: task.name,
+        startFrame: '',
+        endFrame: '',
+        action: '',
+        actionLabel: '',
+        instruction: task.instruction,
+        keyNode: '',
+      },
+    ]
+  }
+  return task.actions.map((a) => ({
+    taskId: task.id,
+    taskName: task.name,
+    startFrame: a.startFrame,
+    endFrame: a.endFrame,
+    action: a.action,
+    actionLabel: a.actionLabel,
+    instruction: a.instruction,
+    keyNode: a.keyNode ? 'Y' : 'N',
+  }))
+}
+
+/**
+ * 瀵煎嚭 JSON / Excel / CSV锛屾枃浠跺悕 ORN-VLA-{taskId}-{timestamp}.{ext}
+ * @param {string} taskId
+ * @param {'json'|'excel'|'csv'} format
+ */
+export async function exportVla(taskId, format) {
+  await businessDelay()
+  const t = state.tasks.find((x) => x.id === taskId)
+  if (!t) throw new Error(`閲囬泦浠诲姟涓嶅瓨鍦細${taskId}`)
+
+  const ts = dayjs().format('YYYYMMDDHHmmss')
+  // Prefer ORN-VLA-{taskId}-{ts}; if taskId already starts with ORN-VLA-, do not double-prefix
+  const base = taskId.startsWith('ORN-VLA-') ? `${taskId}-${ts}` : `ORN-VLA-${taskId}-${ts}`
+  const payload = buildExportPayload(t)
+  const rows = buildExportRows(t)
+
+  if (format === 'json') {
+    const filename = `${base}.json`
+    exportJSON(filename, payload)
+    pushAudit({ action: '瀵煎嚭 VLA JSON', detail: filename })
+    return { filename, format }
+  }
+  if (format === 'csv') {
+    const filename = `${base}.csv`
+    exportCSV(filename, rows)
+    pushAudit({ action: '瀵煎嚭 VLA CSV', detail: filename })
+    return { filename, format }
+  }
+  if (format === 'excel') {
+    const filename = `${base}.xlsx`
+    exportExcel(filename, rows)
+    pushAudit({ action: '瀵煎嚭 VLA Excel', detail: filename })
+    return { filename, format }
+  }
+  throw new Error(`涓嶆敮鎸佺殑瀵煎嚭鏍煎紡锛?{format}`)
+}
+
+/** Pure helper for unit tests: build export filename. */
+export function buildVlaExportFilename(taskId, format, timestamp = dayjs().format('YYYYMMDDHHmmss')) {
+  const ext = format === 'excel' ? 'xlsx' : format
+  const base = taskId.startsWith('ORN-VLA-') ? `${taskId}-${timestamp}` : `ORN-VLA-${taskId}-${timestamp}`
+  return `${base}.${ext}`
+}
+
+export { ISSUE_TYPES, ACTION_TEMPLATES, COLLECT_MODES, SCENE_OPTIONS, PLAN_OPTIONS }
+
+import dayjs from 'dayjs'
+import { businessDelay } from './delay'
+import { pushAudit } from '@/stores/audit'
+import { useAuthStore } from '@/stores/auth'
+import { exportCSV, exportExcel } from '@/utils/exportFiles'
+import {
+  ALGORITHMS,
+  MODELS,
+  GPU_CARDS,
+  AUGMENT_OPTIONS,
+  EXPERIMENTS,
+  nextExpId,
+  mockMetricPoint,
+} from '@/mock/train'
+
+function clone(x) {
+  return JSON.parse(JSON.stringify(x))
+}
+
+function now() {
+  return dayjs().format('YYYY-MM-DD HH:mm:ss')
+}
+
+function requireAdmin(actionLabel) {
+  const auth = useAuthStore()
+  if (auth.role !== 'admin') {
+    throw new Error(`浠呯鐞嗗憳鍙?{actionLabel}锛屽綋鍓嶈鑹叉棤鏉冮檺`)
+  }
+}
+
+const state = {
+  experiments: EXPERIMENTS.map((e) => clone(e)),
+  gpus: GPU_CARDS.map((g) => clone(g)),
+  seq: EXPERIMENTS.length + 1,
+}
+
+// Sync free flags with non-finished seed experiments
+for (const exp of state.experiments) {
+  if (exp.status === 'finished') continue
+  for (const gid of exp.gpuIds) {
+    const card = state.gpus.find((g) => g.id === gid)
+    if (card) card.free = false
+  }
+}
+
+function findExp(expId) {
+  const exp = state.experiments.find((x) => x.id === expId)
+  if (!exp) throw new Error(`瀹為獙涓嶅瓨鍦細${expId}`)
+  return exp
+}
+
+export function listMeta() {
+  return {
+    algorithms: ALGORITHMS,
+    models: MODELS,
+    gpus: state.gpus.map((g) => ({ ...g })),
+    augmentOptions: AUGMENT_OPTIONS,
+  }
+}
+
+export async function listExperiments() {
+  await businessDelay()
+  return state.experiments.map((e) => ({
+    id: e.id,
+    name: e.name,
+    algorithm: e.algorithm,
+    version: e.version,
+    model: e.model,
+    batchSize: e.batchSize,
+    learningRate: e.learningRate,
+    epochs: e.epochs,
+    augment: e.augment,
+    gpuIds: [...e.gpuIds],
+    status: e.status,
+    currentEpoch: e.currentEpoch,
+    createdAt: e.createdAt,
+    metricLen: e.metrics.loss.length,
+  }))
+}
+
+export async function getExperiment(expId) {
+  await businessDelay()
+  return clone(findExp(expId))
+}
+
+/**
+ * 鍒涘缓璁粌瀹為獙锛堜粎绠＄悊鍛橈級
+ * @param {{ name: string, algorithm: string, version: string, model: string, batchSize: number, learningRate: number, epochs: number, augment: boolean, augmentOps?: string[], gpuIds?: string[] }} cfg
+ */
+export async function createExperiment(cfg) {
+  await businessDelay()
+  requireAdmin('鍒涘缓瀹為獙')
+  if (!cfg?.name?.trim()) throw new Error('璇峰～鍐欏疄楠屽悕绉?)
+  if (!cfg.algorithm) throw new Error('璇烽€夋嫨绠楁硶')
+  if (!cfg.version) throw new Error('璇烽€夋嫨绠楁硶鐗堟湰')
+  if (!cfg.model) throw new Error('璇烽€夋嫨妯″瀷')
+  const epochs = Number(cfg.epochs)
+  const batchSize = Number(cfg.batchSize)
+  const learningRate = Number(cfg.learningRate)
+  if (!Number.isFinite(epochs) || epochs < 1) throw new Error('epoch 闇€涓烘鏁存暟')
+  if (!Number.isFinite(batchSize) || batchSize < 1) throw new Error('batchSize 鏃犳晥')
+  if (!Number.isFinite(learningRate) || learningRate <= 0) throw new Error('learningRate 鏃犳晥')
+
+  const id = nextExpId(state.seq++)
+  const gpuIds = Array.isArray(cfg.gpuIds) ? [...cfg.gpuIds] : []
+  const exp = {
+    id,
+    name: cfg.name.trim(),
+    algorithm: cfg.algorithm,
+    version: cfg.version,
+    model: cfg.model,
+    batchSize,
+    learningRate,
+    epochs,
+    augment: !!cfg.augment,
+    augmentOps: cfg.augment ? [...(cfg.augmentOps || [])] : [],
+    gpuIds,
+    status: gpuIds.length ? 'ready' : 'draft',
+    currentEpoch: 0,
+    createdAt: now(),
+    startedAt: null,
+    finishedAt: null,
+    logs: [{ at: now(), level: 'info', message: '瀹為獙宸插垱寤? }],
+    metrics: { loss: [], acc: [], map: [] },
+  }
+
+  if (gpuIds.length) {
+    for (const gid of gpuIds) {
+      const card = state.gpus.find((g) => g.id === gid)
+      if (!card) throw new Error(`GPU 涓嶅瓨鍦細${gid}`)
+      if (!card.free && !EXPERIMENTS.some((e) => e.gpuIds.includes(gid))) {
+        // allow if currently free in runtime state
+      }
+      if (!card.free) throw new Error(`GPU 宸茶鍗犵敤锛?{card.name}`)
+      card.free = false
+    }
+    const names = gpuIds.map((id) => state.gpus.find((g) => g.id === id)?.name || id).join(', ')
+    exp.logs.push({ at: now(), level: 'info', message: `鍒涘缓鏃跺垎閰?GPU锛?{names}` })
+  }
+
+  state.experiments.unshift(exp)
+  pushAudit({
+    action: '鍒涘缓璁粌瀹為獙',
+    detail: `${id} 路 ${exp.name} 路 ${exp.algorithm}@${exp.version} 路 ${exp.model}`,
+  })
+  return clone(exp)
+}
+
+/**
+ * 鍒嗛厤 GPU锛堜粎绠＄悊鍛橈級
+ * @param {string} expId
+ * @param {string[]} gpuIds
+ */
+export async function allocateGpu(expId, gpuIds) {
+  await businessDelay()
+  requireAdmin('鍒嗛厤 GPU')
+  const exp = findExp(expId)
+  if (exp.status === 'running') throw new Error('杩愯涓殑瀹為獙涓嶅彲鏀归厤 GPU')
+  if (!gpuIds?.length) throw new Error('璇疯嚦灏戦€夋嫨涓€寮?GPU')
+
+  // release previous
+  for (const gid of exp.gpuIds) {
+    const card = state.gpus.find((g) => g.id === gid)
+    if (card) card.free = true
+  }
+
+  for (const gid of gpuIds) {
+    const card = state.gpus.find((g) => g.id === gid)
+    if (!card) throw new Error(`GPU 涓嶅瓨鍦細${gid}`)
+    // allow re-selecting same cards already on this exp
+    const heldByOther = state.experiments.some(
+      (e) => e.id !== expId && e.gpuIds.includes(gid) && e.status !== 'finished',
+    )
+    if (!card.free && heldByOther) throw new Error(`GPU 宸茶鍗犵敤锛?{card.name}`)
+    card.free = false
+  }
+
+  exp.gpuIds = [...gpuIds]
+  if (exp.status === 'draft') exp.status = 'ready'
+  const names = gpuIds.map((id) => state.gpus.find((g) => g.id === id)?.name || id).join(', ')
+  exp.logs.push({ at: now(), level: 'info', message: `鍒嗛厤 GPU锛?{names}` })
+  pushAudit({ action: '鍒嗛厤璁粌 GPU', detail: `${expId} 路 ${names}` })
+  return clone(exp)
+}
+
+/** 鍚姩璁粌锛堜粎绠＄悊鍛橈級 */
+export async function startTrain(expId) {
+  await businessDelay()
+  requireAdmin('鍚姩璁粌')
+  const exp = findExp(expId)
+  if (!exp.gpuIds.length) throw new Error('璇峰厛鍒嗛厤 GPU')
+  if (exp.status === 'running') throw new Error('瀹為獙宸插湪杩愯')
+  if (exp.status === 'finished' && exp.currentEpoch >= exp.epochs) {
+    // allow restart: reset metrics
+    exp.metrics = { loss: [], acc: [], map: [] }
+    exp.currentEpoch = 0
+    exp.finishedAt = null
+  }
+  exp.status = 'running'
+  exp.startedAt = now()
+  exp.logs.push({
+    at: now(),
+    level: 'info',
+    message: `寮€濮嬭缁?路 epoch 鐩爣 ${exp.epochs} 路 澧炲己 ${exp.augment ? '寮€' : '鍏?}`,
+  })
+  pushAudit({ action: '鍚姩璁粌', detail: `${expId} 路 epochs=${exp.epochs}` })
+  return clone(exp)
+}
+
+/** 鍋滄璁粌锛堜粎绠＄悊鍛橈級 */
+export async function stopTrain(expId) {
+  await businessDelay()
+  requireAdmin('鍋滄璁粌')
+  const exp = findExp(expId)
+  if (exp.status !== 'running') throw new Error('褰撳墠涓嶅湪杩愯鐘舵€?)
+  exp.status = exp.currentEpoch >= exp.epochs ? 'finished' : 'stopped'
+  if (exp.status === 'finished') exp.finishedAt = now()
+  exp.logs.push({
+    at: now(),
+    level: 'warning',
+    message: `鎵嬪姩鍋滄 路 宸插畬鎴?epoch ${exp.currentEpoch}/${exp.epochs}`,
+  })
+  pushAudit({ action: '鍋滄璁粌', detail: `${expId} 路 epoch ${exp.currentEpoch}` })
+  return clone(exp)
+}
+
+/**
+ * 鎺ㄨ繘涓€涓?mock epoch锛堢敱 TrainRunner 瀹氭椂鍣ㄨ皟鐢級
+ * @returns {{ experiment: object, point: {loss,acc,map}, done: boolean }}
+ */
+export async function tickEpoch(expId) {
+  // short delay so UI stays snappy during timer ticks
+  await businessDelay()
+  const exp = findExp(expId)
+  if (exp.status !== 'running') {
+    return { experiment: clone(exp), point: null, done: exp.status === 'finished' }
+  }
+  if (exp.currentEpoch >= exp.epochs) {
+    exp.status = 'finished'
+    exp.finishedAt = now()
+    return { experiment: clone(exp), point: null, done: true }
+  }
+
+  const next = exp.currentEpoch + 1
+  const point = mockMetricPoint(next, exp.epochs)
+  exp.currentEpoch = next
+  exp.metrics.loss.push(point.loss)
+  exp.metrics.acc.push(point.acc)
+  exp.metrics.map.push(point.map)
+  exp.logs.push({
+    at: now(),
+    level: 'info',
+    message: `epoch ${next}/${exp.epochs} 路 loss=${point.loss} acc=${point.acc} mAP=${point.map}`,
+  })
+
+  let done = false
+  if (next >= exp.epochs) {
+    exp.status = 'finished'
+    exp.finishedAt = now()
+    exp.logs.push({ at: now(), level: 'success', message: `璁粌瀹屾垚 epoch ${next}/${exp.epochs}` })
+    done = true
+    pushAudit({ action: '璁粌瀹屾垚', detail: `${expId} 路 ${next} epochs` })
+  }
+  return { experiment: clone(exp), point, done }
+}
+
+export async function getMetrics(expId) {
+  await businessDelay()
+  const exp = findExp(expId)
+  return {
+    loss: [...exp.metrics.loss],
+    acc: [...exp.metrics.acc],
+    map: [...exp.metrics.map],
+    currentEpoch: exp.currentEpoch,
+    epochs: exp.epochs,
+    status: exp.status,
+  }
+}
+
+/**
+ * 瀵煎嚭璁粌鎶ヨ〃 CSV / Excel
+ * @param {string} expId
+ * @param {'csv'|'excel'} format
+ */
+export async function exportReport(expId, format) {
+  await businessDelay()
+  const exp = findExp(expId)
+  const rows = []
+  const n = Math.max(exp.metrics.loss.length, exp.metrics.acc.length, exp.metrics.map.length)
+  for (let i = 0; i < n; i += 1) {
+    rows.push({
+      experimentId: exp.id,
+      name: exp.name,
+      epoch: i + 1,
+      loss: exp.metrics.loss[i] ?? '',
+      acc: exp.metrics.acc[i] ?? '',
+      map: exp.metrics.map[i] ?? '',
+      algorithm: exp.algorithm,
+      version: exp.version,
+      model: exp.model,
+      augment: exp.augment ? 'Y' : 'N',
+      status: exp.status,
+    })
+  }
+  if (rows.length === 0) {
+    rows.push({
+      experimentId: exp.id,
+      name: exp.name,
+      epoch: '',
+      loss: '',
+      acc: '',
+      map: '',
+      algorithm: exp.algorithm,
+      version: exp.version,
+      model: exp.model,
+      augment: exp.augment ? 'Y' : 'N',
+      status: exp.status,
+    })
+  }
+
+  const ts = dayjs().format('YYYYMMDDHHmmss')
+  const base = `${exp.id}-report-${ts}`
+  if (format === 'csv') {
+    const filename = `${base}.csv`
+    exportCSV(filename, rows)
+    pushAudit({ action: '瀵煎嚭璁粌鎶ヨ〃 CSV', detail: filename })
+    return { filename, format }
+  }
+  if (format === 'excel') {
+    const filename = `${base}.xlsx`
+    exportExcel(filename, rows)
+    pushAudit({ action: '瀵煎嚭璁粌鎶ヨ〃 Excel', detail: filename })
+    return { filename, format }
+  }
+  throw new Error(`涓嶆敮鎸佺殑瀵煎嚭鏍煎紡锛?{format}`)
+}
+
+/** Pure helper for unit tests */
+export function metricsSeriesLength(metrics) {
+  return {
+    loss: metrics?.loss?.length || 0,
+    acc: metrics?.acc?.length || 0,
+    map: metrics?.map?.length || 0,
+  }
+}
+
+export { ALGORITHMS, MODELS, GPU_CARDS, AUGMENT_OPTIONS, mockMetricPoint }
+

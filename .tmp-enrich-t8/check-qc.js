@@ -1,0 +1,6 @@
+const fs = require('fs')
+const qc = fs.readFileSync('E:/omp/vla/vla-demo-naive/src/services/qc.js', 'utf8')
+console.log('listSamplePool query', /listSamplePool\(query/.test(qc))
+console.log('bounceLog count', (qc.match(/bounceLog/g) || []).length)
+const idx = qc.indexOf("toStatus === 'rejected'")
+console.log(qc.slice(idx, idx + 450))

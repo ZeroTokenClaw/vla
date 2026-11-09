@@ -135,6 +135,71 @@ export const VISION_IMAGES = (() => {
   }
 })()
 
+export const PRELABEL_MODELS = [
+  { id: 'mdl-ner-bert-zh', name: 'BERT-Base-ZH NER', type: 'text_pipeline', version: 'v2.3.1', backend: 'transformers', defaultParams: { maxLen: 512, confThres: 0.55 } },
+  { id: 'mdl-paddle-ocr', name: 'PaddleOCR-CN', type: 'ocr', version: 'v2.7.1', backend: 'paddleocr', defaultParams: { confThres: 0.5 } },
+  { id: 'mdl-yolov8n', name: 'YOLOv8n-Desk', type: 'yolo', version: 'v8.2.0', backend: 'ultralytics', defaultParams: { confThres: 0.35, imgsz: 640 } },
+]
+
+export function createPrelabelJobs() {
+  return [
+    {
+      id: 'SC-PRE-2026-001',
+      title: '客服文本批次预标',
+      type: 'text_pipeline',
+      modelId: 'mdl-ner-bert-zh',
+      modelVersion: 'v2.3.1',
+      params: { confThres: 0.55 },
+      sampleIds: ['SC-TXT-2026-001'],
+      status: 'success',
+      progressPct: 100,
+      successCount: 1,
+      failCount: 0,
+      retryCount: 0,
+      errorMessage: null,
+      createdAt: '2026-11-08 10:12:00',
+      finishedAt: '2026-11-08 10:14:22',
+      diffStats: { entityFixRate: 0.18, yoloFixRate: 0.1 },
+    },
+    {
+      id: 'SC-PRE-2026-002',
+      title: 'YOLO 失败重试样例',
+      type: 'yolo',
+      modelId: 'mdl-yolov8n',
+      modelVersion: 'v8.2.0',
+      params: { confThres: 0.3, imgsz: 640 },
+      sampleIds: ['SC-IMG-2026-001'],
+      status: 'failed',
+      progressPct: 46,
+      successCount: 0,
+      failCount: 1,
+      retryCount: 1,
+      errorMessage: 'CUDA OOM（演示）',
+      createdAt: '2026-11-09 07:40:00',
+      finishedAt: '2026-11-09 07:41:18',
+      diffStats: null,
+    },
+    {
+      id: 'SC-PRE-2026-003',
+      title: 'OCR 流水线运行中',
+      type: 'ocr',
+      modelId: 'mdl-paddle-ocr',
+      modelVersion: 'v2.7.1',
+      params: { confThres: 0.5 },
+      sampleIds: ['SC-IMG-2026-001'],
+      status: 'running',
+      progressPct: 58,
+      successCount: 0,
+      failCount: 0,
+      retryCount: 0,
+      errorMessage: null,
+      createdAt: '2026-11-09 08:55:00',
+      finishedAt: null,
+      diffStats: null,
+    },
+  ]
+}
+
 export const ACCEPT_STEPS = [
   { key: 'confirm', label: '确认预标', desc: '核对模型结果与样例匹配度，确认进入精标' },
   { key: 'annotate', label: '人工精标', desc: '完成漏标补标、错标修正与结构化核对' },

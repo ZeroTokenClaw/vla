@@ -11,6 +11,11 @@ const tabs = [
     match: (p) => p.startsWith('/vla/collect') || p === '/vla',
   },
   {
+    path: '/vla/devices',
+    label: '设备台账',
+    match: (p) => p.startsWith('/vla/devices'),
+  },
+  {
     path: '/vla/timeline',
     label: '时间轴标注',
     match: (p) => p.startsWith('/vla/timeline'),

@@ -177,6 +177,9 @@ onMounted(async () => {
             <span>质检问题列表 · {{ task.id }}</span>
             <el-tag v-if="task.issuesDetected" type="success" size="small">已检测</el-tag>
             <el-tag v-else type="info" size="small">未检测</el-tag>
+            <el-tag v-if="task.detectorMeta" size="small" type="warning" effect="plain">
+              {{ task.detectorMeta.version }} · {{ task.detectorMeta.engine }}
+            </el-tag>
           </div>
         </template>
 

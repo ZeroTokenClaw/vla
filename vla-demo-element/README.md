@@ -19,22 +19,25 @@ pnpm dev
 
 | 路径 | 模块 |
 |------|------|
-| `/` | 工作台（待办工单） |
+| `/` | 工作台（KPI 驾驶舱 + 待办跳转） |
 | `/qc` | 质控中心 |
 | `/qc/annotate/:id?` | 多模态标注工作台 |
 | `/qc/workflow` | 协作看板（分配/流转/批注） |
 | `/qc/audit/:id?` | 多级审核（驳回返修闭环） |
 | `/qc/sample-check` | 抽检规则 / 随机抽检 / 回流 |
 | `/qc/spec` | 标注规范 |
-| `/prelabel/text` | 文本分类·NER·关系·结构化 + 人工修正 |
-| `/prelabel/vision` | OCR + YOLO 预标 + 人工修正 |
+| `/prelabel/text` | 文本分类·NER·关系·结构化 + 模型选择 + 人工修正 |
+| `/prelabel/vision` | OCR + YOLO 预标（可选模型/阈值）+ 人工修正 |
 | `/prelabel/accept` | 确认·标注·质检·验收向导 |
-| `/vla/collect` | 采集任务/场景/方案/模式/动作模板/人员 |
+| `/prelabel/jobs` | 批量预标任务队列 · 进度 · 失败重试 · Diff 统计 |
+| `/vla/collect` | 采集任务/场景/方案/模式/模板/人员/设备/进度 |
+| `/vla/devices` | 采集设备台账与绑定任务 |
 | `/vla/timeline/:id?` | 多模态联动·动作序列·关键节点·起止帧·导出 |
-| `/vla/quality/:id?` | 抖动/遮挡/模糊/缺失/不匹配 · 标记过滤 |
-| `/train/config` | 算法/版本/模型/参数/GPU |
-| `/train/runner/:id?` | 运行控制 · 数据增强 |
+| `/vla/quality/:id?` | 抖动/遮挡/模糊/缺失/不匹配 · 检测版本 · 标记过滤 |
+| `/train/config` | 算法/版本/模型/数据集版本/参数/GPU |
+| `/train/runner/:id?` | 启动/暂停/恢复/停止/重试 · 数据增强 |
 | `/train/metrics/:id?` | loss / acc / mAP · 报表导出 |
+| `/train/gpus` | GPU 利用率/显存/温度监控（演示伪造读数） |
 
 ## 评分点 → 菜单路径 → 演示要点
 
@@ -59,6 +62,12 @@ pnpm dev
 ## 录屏脚本
 
 逐步点击路径见：`docs/record-script-datalink.md`
+
+## 产品分析交付（16 分提示词）
+
+对照招标评分提示词的盘点、映射、数据模型、接口、缺口计划、验收用例与 15 分钟脚本：
+
+`../docs/product/datalink-element/`（仓库根目录 `docs/product/datalink-element/`）
 
 ## 脚本
 

@@ -1,7 +1,8 @@
 <script setup>
 import { message } from '@/ui/discrete'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { NButton, NSpace, NTag } from 'naive-ui'
 import ProgressMock from '@/components/ProgressMock.vue'
 import { useAuthStore } from '@/stores/auth'
 import { copy } from '@/i18n/copy'
@@ -150,14 +151,61 @@ function gpuNames(ids) {
 function statusType(s) {
   if (s === 'running') return 'warning'
   if (s === 'finished') return 'success'
-  if (s === 'stopped') return 'info'
-  if (s === 'ready') return 'primary'
-  return 'info'
+  if (s === 'stopped') return 'default'
+  if (s === 'ready') return 'info'
+  return 'default'
 }
 
 onMounted(refresh)
+
 const lmTableCols1 = [
-  
+  { title: '实验号', key: 'id', width: 140 },
+  { title: '名称', key: 'name', ellipsis: { tooltip: true } },
+  {
+    title: '算法',
+    key: 'algorithm',
+    width: 120,
+    render: (r) => algoLabel(r.algorithm),
+  },
+  { title: '版本', key: 'version', width: 90 },
+  {
+    title: '模型',
+    key: 'model',
+    width: 110,
+    render: (r) => modelLabel(r.model),
+  },
+  {
+    title: 'GPU',
+    key: 'gpuIds',
+    width: 140,
+    ellipsis: { tooltip: true },
+    render: (r) => gpuNames(r.gpuIds) || '—',
+  },
+  {
+    title: '状态',
+    key: 'status',
+    width: 90,
+    render: (r) =>
+      h(NTag, { size: 'small', type: statusType(r.status), bordered: false }, { default: () => r.status }),
+  },
+  {
+    title: '进度',
+    key: 'epoch',
+    width: 90,
+    render: (r) => `${r.currentEpoch || 0}/${r.epochs || '—'}`,
+  },
+  {
+    title: '操作',
+    key: 'act',
+    width: 140,
+    render: (r) =>
+      h(NSpace, { size: 4 }, {
+        default: () => [
+          h(NButton, { size: 'tiny', quaternary: true, type: 'primary', onClick: () => goRunner(r.id) }, { default: () => '监控' }),
+          h(NButton, { size: 'tiny', quaternary: true, onClick: () => goMetrics(r.id) }, { default: () => '指标' }),
+        ],
+      }),
+  },
 ]
 </script>
 

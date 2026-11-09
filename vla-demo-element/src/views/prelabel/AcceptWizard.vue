@@ -25,8 +25,27 @@ const job = ref(null)
 const loading = ref(false)
 const advancing = ref(false)
 const qaNote = ref('')
+const compareRows = ref([])
 
 const currentId = computed(() => route.params.id)
+
+function buildCompare(jobRow) {
+  if (!jobRow) return []
+  if (jobRow.sourceType === 'vision') {
+    return [
+      { field: 'OCR 文本「托盘」', model: '托盘', human: '托盘', conf: 0.91, status: '一致' },
+      { field: 'OCR 文本「箱号」', model: 'B0X-11', human: 'BOX-11', conf: 0.62, status: '已修正' },
+      { field: 'YOLO cup', model: 'cup@0.88', human: 'cup', conf: 0.88, status: '一致' },
+      { field: 'YOLO tool', model: 'other@0.41', human: 'tool', conf: 0.41, status: '已修正' },
+    ]
+  }
+  return [
+    { field: '文本分类', model: '投诉-物流延误', human: '投诉-包裹破损', conf: 0.81, status: '已修正' },
+    { field: '实体 ADDRESS', model: 'ORG', human: 'ADDRESS', conf: 0.72, status: '已修正' },
+    { field: '关系 ORDER→ADDR', model: 'SHIPS_TO', human: 'RETURN_TO', conf: 0.61, status: '已修正' },
+    { field: '实体 PERSON', model: 'PERSON', human: 'PERSON', conf: 0.94, status: '一致' },
+  ]
+}
 
 const activeStepIndex = computed(() => {
   if (!job.value) return 0
@@ -62,6 +81,7 @@ async function loadJob(id) {
   try {
     job.value = await getAcceptJob(id)
     qaNote.value = job.value.qaNote || ''
+    compareRows.value = buildCompare(job.value)
   } catch (e) {
     ElMessage.error(e.message || '加载失败')
   } finally {
@@ -211,6 +231,19 @@ function stepStatus(key) {
 
             <div v-if="job.step === 'confirm'" class="hint">
               请确认预标注结果与业务样例一致，确认后进入人工精标。
+              <el-table :data="compareRows" size="small" stripe class="cmp" style="margin-top: 12px">
+                <el-table-column prop="field" label="字段" min-width="140" />
+                <el-table-column prop="model" label="模型结果" min-width="120" />
+                <el-table-column prop="human" label="人工最终" min-width="120" />
+                <el-table-column prop="conf" label="置信度" width="90" />
+                <el-table-column prop="status" label="对照" width="90">
+                  <template #default="{ row }">
+                    <el-tag size="small" :type="row.status === '一致' ? 'success' : 'warning'">
+                      {{ row.status }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+              </el-table>
             </div>
             <div v-else-if="job.step === 'annotate'" class="hint">
               请在「文本预标 / 视觉预标」页完成人工修正后，回到本向导继续。
@@ -218,6 +251,12 @@ function stepStatus(key) {
                 <el-button link type="primary" @click="router.push('/prelabel/text')">打开文本预标</el-button>
                 <el-button link type="primary" @click="router.push('/prelabel/vision')">打开视觉预标</el-button>
               </div>
+              <el-table :data="compareRows" size="small" stripe class="cmp" style="margin-top: 12px">
+                <el-table-column prop="field" label="字段" min-width="140" />
+                <el-table-column prop="model" label="预标" min-width="120" />
+                <el-table-column prop="human" label="精标后" min-width="120" />
+                <el-table-column prop="status" label="Diff" width="90" />
+              </el-table>
             </div>
             <div v-else-if="job.step === 'qa'" class="hint">
               <div class="label">质检意见</div>
@@ -227,6 +266,11 @@ function stepStatus(key) {
                 :rows="3"
                 placeholder="例如：实体类型已修正，关系抽取合格，允许验收"
               />
+              <p class="qa-sum">
+                Diff 摘要：一致
+                {{ compareRows.filter((r) => r.status === '一致').length }} /
+                已修正 {{ compareRows.filter((r) => r.status === '已修正').length }}
+              </p>
             </div>
             <div v-else class="hint">
               <el-alert
@@ -258,6 +302,14 @@ function stepStatus(key) {
 </template>
 
 <style scoped>
+.qa-sum {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+.cmp {
+  width: 100%;
+}
 .side {
   min-height: 520px;
 }

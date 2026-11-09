@@ -186,8 +186,38 @@ onMounted(async () => {
   }
 })
 const scTableCols1 = [
-  
+  { title: '片段', dataIndex: 'id', width: 90 },
+  { title: '动作', dataIndex: 'actionLabel', width: 100 },
+  { title: '起帧', dataIndex: 'startFrame', width: 70 },
+  { title: '止帧', dataIndex: 'endFrame', width: 70 },
+  { title: '关键节点', slotName: 'keyNode', width: 80 },
+  { title: '指令说明', dataIndex: 'instruction', ellipsis: true },
+  { title: '操作', slotName: 'ops', width: 140 },
 ]
+
+const instructionDraft = ref('')
+
+watch(
+  () => task.value?.instruction,
+  (v) => {
+    instructionDraft.value = v || ''
+  },
+  { immediate: true },
+)
+
+async function saveInstruction() {
+  if (!task.value) return
+  saving.value = true
+  try {
+    // reuse span save side-channel: patch via saveActionSpan noop — store on task through export payload
+    task.value.instruction = instructionDraft.value
+    Message.success('任务指令已更新（演示内存态）')
+  } finally {
+    saving.value = false
+  }
+}
+
+const keyNodes = computed(() => (task.value?.actions || []).filter((a) => a.keyNode))
 </script>
 
 <template>
@@ -229,12 +259,28 @@ const scTableCols1 = [
               <div><span class="k">总帧</span>{{ task.totalFrames }}</div>
               <div class="full">
                 <span class="k">任务指令</span>
-                <a-alert :title="task.instruction" type="info" :closable="false" show-icon />
+                <a-textarea v-model="instructionDraft" :auto-size="{ minRows: 2, maxRows: 4 }" />
+                <a-button size="mini" type="outline" style="margin-top: 6px" @click="saveInstruction">保存指令</a-button>
               </div>
               <div v-if="currentActionHint" class="full">
                 <span class="k">当前动作</span>
                 <a-tag color="orangered">{{ currentActionHint.actionLabel }}</a-tag>
                 <span class="hint">{{ currentActionHint.instruction }}</span>
+              </div>
+              <div class="full">
+                <span class="k">关键节点</span>
+                <a-space wrap>
+                  <a-tag
+                    v-for="n in keyNodes"
+                    :key="n.id"
+                    color="arcoblue"
+                    checkable
+                    @check="seekTo(n.startFrame)"
+                  >
+                    {{ n.actionLabel }} @F{{ n.startFrame }}
+                  </a-tag>
+                  <span v-if="!keyNodes.length" class="hint">暂无，保存片段时勾选「关键节点」</span>
+                </a-space>
               </div>
             </div>
           </a-col>
@@ -350,7 +396,25 @@ const scTableCols1 = [
                 <a-tag size="small">{{ task.actions.length }} 段</a-tag>
               </div>
             </template>
-            <a-table :columns="scTableCols1" :data="task.actions" row-key="id" :pagination="false" size="small"></a-table>
+            <a-table
+              :columns="scTableCols1"
+              :data="task.actions"
+              row-key="id"
+              :pagination="false"
+              size="small"
+              @row-click="onRowClick"
+            >
+              <template #keyNode="{ record }">
+                <a-tag v-if="record.keyNode" color="green" size="small">关键</a-tag>
+                <span v-else class="hint">—</span>
+              </template>
+              <template #ops="{ record }">
+                <a-space>
+                  <a-button size="mini" @click.stop="onRowClick(record)">编辑</a-button>
+                  <a-button size="mini" status="danger" @click.stop="onDelete(record)">删</a-button>
+                </a-space>
+              </template>
+            </a-table>
           </a-card>
         </a-col>
       </a-row>

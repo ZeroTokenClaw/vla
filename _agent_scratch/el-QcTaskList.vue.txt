@@ -1,0 +1,268 @@
+﻿<script setup>
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import {
+  listQcTasks,
+  createQcTask,
+  assignTask,
+  listMeta,
+  getModalityMeta,
+  getStatusMeta,
+} from '@/services/qc'
+import { useAuthStore } from '@/stores/auth'
+
+const router = useRouter()
+const auth = useAuthStore()
+
+const loading = ref(false)
+const tasks = ref([])
+const meta = reactive({ modalities: [], statuses: [], priorities: [], users: [] })
+const filters = reactive({ keyword: '', status: '', modality: '', priority: '' })
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+
+const createVisible = ref(false)
+const createForm = reactive({
+  title: '',
+  modality: 'text_ner',
+  priority: 'medium',
+  sampleCount: 20,
+  batchId: '',
+})
+
+const assignVisible = ref(false)
+const assignTarget = ref(null)
+const assignUserId = ref('')
+
+const annotators = computed(() =>
+  meta.users.filter((u) => u.role === 'annotator' || u.role === 'admin'),
+)
+
+async function load() {
+  loading.value = true
+  try {
+    Object.assign(meta, listMeta())
+    const res = await listQcTasks({ ...filters, page: page.value, pageSize: pageSize.value })
+    tasks.value = res.items
+    total.value = res.total
+    page.value = res.page
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(load)
+
+async function onSearch() {
+  page.value = 1
+  await load()
+}
+
+async function onCreate() {
+  if (!createForm.title.trim()) {
+    ElMessage.warning('璇峰～鍐欏伐鍗曟爣棰?)
+    return
+  }
+  const t = await createQcTask({ ...createForm })
+  ElMessage.success(`宸插垱寤哄伐鍗?${t.id}`)
+  createVisible.value = false
+  createForm.title = ''
+  await load()
+}
+
+function openAssign(row) {
+  assignTarget.value = row
+  assignUserId.value = row.assigneeId || ''
+  assignVisible.value = true
+}
+
+async function confirmAssign() {
+  if (!assignUserId.value) {
+    ElMessage.warning('璇烽€夋嫨澶勭悊浜?)
+    return
+  }
+  await assignTask(assignTarget.value.id, assignUserId.value)
+  ElMessage.success('鍒嗛厤鎴愬姛')
+  assignVisible.value = false
+  await load()
+}
+
+function goAnnotate(id) {
+  router.push(`/qc/annotate/${id}`)
+}
+
+function goAudit(id) {
+  router.push(`/qc/audit/${id}`)
+}
+
+function userLabel(id) {
+  return meta.users.find((u) => u.id === id)?.name || '鈥?
+}
+
+function canCreate() {
+  return auth.role === 'admin' || auth.role === 'reviewer'
+}
+
+defineExpose({ openCreate: () => { createVisible.value = true } })
+</script>
+
+<template>
+  <div>
+    <div class="list-actions">
+      <el-button v-if="canCreate()" type="primary" @click="createVisible = true">鏂板缓宸ュ崟</el-button>
+    </div>
+    <el-card shadow="never" class="filter-card">
+      <el-form :inline="true" @submit.prevent>
+        <el-form-item label="鍏抽敭瀛?>
+          <el-input v-model="filters.keyword" clearable placeholder="宸ュ崟鍙?鏍囬" style="width: 180px" />
+        </el-form-item>
+        <el-form-item label="鐘舵€?>
+          <el-select v-model="filters.status" clearable placeholder="鍏ㄩ儴" style="width: 130px">
+            <el-option v-for="s in meta.statuses" :key="s.value" :label="s.label" :value="s.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="妯℃€?>
+          <el-select v-model="filters.modality" clearable placeholder="鍏ㄩ儴" style="width: 150px">
+            <el-option v-for="m in meta.modalities" :key="m.value" :label="m.label" :value="m.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="浼樺厛绾?>
+          <el-select v-model="filters.priority" clearable placeholder="鍏ㄩ儴" style="width: 120px">
+            <el-option v-for="p in meta.priorities" :key="p.value" :label="p.label" :value="p.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="loading" @click="onSearch">鏌ヨ</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <el-card shadow="never">
+      <el-empty v-if="!tasks?.length && !loading" description="鏆傛棤璐ㄦ帶宸ュ崟" :image-size="72" />
+    <el-table v-show="tasks?.length"  :data="tasks" v-loading="loading" stripe>
+        <el-table-column prop="id" label="宸ュ崟鍙? min-width="160" fixed />
+        <el-table-column prop="title" label="鏍囬" min-width="180" show-overflow-tooltip />
+        <el-table-column label="妯℃€? width="120">
+          <template #default="{ row }">{{ getModalityMeta(row.modality)?.short }}</template>
+        </el-table-column>
+        <el-table-column label="鐘舵€? width="100">
+          <template #default="{ row }">
+            <el-tag size="small" :type="getStatusMeta(row.status)?.color || 'info'">
+              {{ getStatusMeta(row.status)?.label }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="浼樺厛绾? width="80">
+          <template #default="{ row }">
+            <el-tag
+              size="small"
+              :type="row.priority === 'high' ? 'danger' : row.priority === 'medium' ? 'warning' : 'info'"
+            >
+              {{ row.priority === 'high' ? '楂? : row.priority === 'medium' ? '涓? : '浣? }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="buCode" label="浜嬩笟閮? width="100" />
+      <el-table-column label="澶勭悊浜? width="100">
+          <template #default="{ row }">{{ userLabel(row.assigneeId) }}</template>
+        </el-table-column>
+        <el-table-column label="鍗忎綔" width="80">
+          <template #default="{ row }">{{ row.collaborators?.length || 0 }}浜?/template>
+        </el-table-column>
+        <el-table-column label="杩涘害" width="110">
+          <template #default="{ row }">{{ row.doneCount }}/{{ row.sampleCount }}</template>
+        </el-table-column>
+        <el-table-column label="鏇存柊鏃堕棿" width="160" prop="updatedAt" />
+        <el-table-column label="鎿嶄綔" width="220" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="goAnnotate(row.id)">鏍囨敞</el-button>
+            <el-button link type="primary" @click="openAssign(row)">鍒嗛厤</el-button>
+            <el-button link type="primary" @click="goAudit(row.id)">瀹℃牳</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+        <div class="pager">
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
+        layout="total, prev, pager, next, sizes"
+        :page-sizes="[10, 20, 50]"
+        @current-change="load"
+        @size-change="() => { page = 1; load() }"
+      />
+    </div>
+
+    <el-dialog v-model="createVisible" title="鏂板缓璐ㄦ帶宸ュ崟" width="480px">
+      <el-form label-width="90px">
+        <el-form-item label="鏍囬" required>
+          <el-input v-model="createForm.title" placeholder="渚嬪锛氶棬鍘呭紑闂ㄧ偣浜戝垎鍓茶繑淇? />
+        </el-form-item>
+        <el-form-item label="妯℃€? required>
+          <el-select v-model="createForm.modality" style="width: 100%">
+            <el-option v-for="m in meta.modalities" :key="m.value" :label="m.label" :value="m.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="浼樺厛绾?>
+          <el-radio-group v-model="createForm.priority">
+            <el-radio value="high">楂?/el-radio>
+            <el-radio value="medium">涓?/el-radio>
+            <el-radio value="low">浣?/el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="鏍锋湰鏁?>
+          <el-input-number v-model="createForm.sampleCount" :min="1" :max="500" />
+        </el-form-item>
+        <el-form-item label="鎵规鍙?>
+          <el-input v-model="createForm.batchId" placeholder="鍙€? />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createVisible = false">鍙栨秷</el-button>
+        <el-button type="primary" @click="onCreate">鍒涘缓</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="assignVisible" title="浜哄憳鍒嗛厤" width="420px">
+      <p class="hint">宸ュ崟 {{ assignTarget?.id }} 路 {{ assignTarget?.title }}</p>
+      <el-select v-model="assignUserId" placeholder="閫夋嫨鏍囨敞鍛? style="width: 100%">
+        <el-option
+          v-for="u in annotators"
+          :key="u.id"
+          :label="`${u.name}锛?{u.dept}锛塦"
+          :value="u.id"
+        />
+      </el-select>
+      <template #footer>
+        <el-button @click="assignVisible = false">鍙栨秷</el-button>
+        <el-button type="primary" @click="confirmAssign">纭鍒嗛厤</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<style scoped>
+.list-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+.filter-card {
+  margin-bottom: 12px;
+}
+.hint {
+  margin: 0 0 12px;
+  color: #6b7280;
+  font-size: 13px;
+}
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin: 12px 0 8px;
+}
+</style>
+

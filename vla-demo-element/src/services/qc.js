@@ -15,6 +15,7 @@ import {
   STATUS_FLOW,
   REJECT_REASONS,
   PRIORITIES,
+  QUALITY_PERSON_STATS,
 } from '@/mock/qc'
 
 const _tasks = createInitialTasks()
@@ -274,6 +275,73 @@ export async function updateSampleRule(id, patch) {
   if (patch.modalities) rule.modalities = [...patch.modalities]
   pushAudit({ action: '更新抽检规则', detail: `${id} · ${rule.name}` })
   return { ...rule, modalities: [...rule.modalities] }
+}
+
+/** 指定样本 ID 抽检（演示） */
+export async function runDesignatedSampleCheck(sampleIds = []) {
+  await businessDelay()
+  const ids = [...new Set((sampleIds || []).map((s) => String(s).trim()).filter(Boolean))]
+  if (!ids.length) throw new Error('请填写至少一个样本号')
+  const picked = []
+  const missing = []
+  for (const id of ids) {
+    const s = state.samplePool.find((x) => x.id === id)
+    if (!s) {
+      missing.push(id)
+      continue
+    }
+    s.status = 'checking'
+    picked.push(s)
+  }
+  if (!picked.length) throw new Error(`未找到可抽检样本：${missing.join(', ')}`)
+  const run = {
+    id: `RUN-DESIG-${Date.now()}`,
+    ruleId: 'DESIGNATED',
+    ruleName: '指定样本抽检',
+    at: now(),
+    pickedIds: picked.map((p) => p.id),
+    count: picked.length,
+    missing,
+  }
+  state.lastSampleRun = run
+  pushAudit({
+    action: '执行指定样本抽检',
+    detail: `抽中 ${picked.length} 条${missing.length ? ` · 未找到 ${missing.length}` : ''}`,
+  })
+  return {
+    run,
+    samples: picked.map((s) => ({ ...s })),
+  }
+}
+
+/** 质量统计看板数据 */
+export async function getQualityDashboard() {
+  await businessDelay()
+  const pool = state.samplePool
+  const pass = pool.filter((s) => s.status === 'pass' || s.status === 'refluxed').length
+  const fail = pool.filter((s) => s.status === 'fail').length
+  const refluxed = pool.filter((s) => s.status === 'refluxed').length
+  const decided = pass + fail
+  const byModality = {}
+  for (const s of pool) {
+    if (!byModality[s.modality]) byModality[s.modality] = { total: 0, pass: 0, fail: 0 }
+    byModality[s.modality].total += 1
+    if (s.status === 'pass' || s.status === 'refluxed') byModality[s.modality].pass += 1
+    if (s.status === 'fail') byModality[s.modality].fail += 1
+  }
+  return {
+    totals: {
+      poolSize: pool.length,
+      pass,
+      fail,
+      refluxed,
+      passRate: decided ? Number((pass / decided).toFixed(4)) : 0,
+      rejectRate: decided ? Number((fail / decided).toFixed(4)) : 0,
+      reworkRate: 0.09,
+    },
+    byModality,
+    persons: QUALITY_PERSON_STATS.map((p) => ({ ...p })),
+  }
 }
 
 export async function runSampleCheck(ruleId) {

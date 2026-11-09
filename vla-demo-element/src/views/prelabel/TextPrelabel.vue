@@ -26,6 +26,9 @@ const saving = ref(false)
 const pipelineResult = ref(null)
 const changedFields = ref([])
 const meta = listMeta()
+const textModelId = ref(meta.models.find((m) => m.type === 'text_pipeline')?.id || '')
+const confThres = ref(0.55)
+const lastRunMeta = ref(null)
 
 const draft = ref({
   classifyLabel: '',
@@ -97,10 +100,15 @@ async function onRun() {
   if (!doc.value) return
   running.value = true
   try {
-    pipelineResult.value = await runTextPipeline(doc.value.id)
+    const res = await runTextPipeline(doc.value.id, {
+      modelId: textModelId.value,
+      params: { confThres: confThres.value, maxLen: 512 },
+    })
+    pipelineResult.value = res
+    lastRunMeta.value = { modelId: res.modelId, modelVersion: res.modelVersion }
     applyDraft(pipelineResult.value)
     changedFields.value = []
-    ElMessage.success('文本预标管线完成：分类 / NER / 关系 / 结构化')
+    ElMessage.success(`文本预标完成 · ${res.modelId}@${res.modelVersion}`)
     await loadList()
   } catch (e) {
     ElMessage.error(e.message)
@@ -225,9 +233,21 @@ function fieldClass(name) {
           <div class="toolbar">
             <div>
               <div class="title">{{ doc?.title || '选择样例' }}</div>
-              <div class="meta" v-if="doc">批次 {{ doc.batchId }} · {{ doc.status }}</div>
+              <div class="meta" v-if="doc">
+                批次 {{ doc.batchId }} · {{ doc.status }}
+                <span v-if="lastRunMeta"> · 模型 {{ lastRunMeta.modelId }}@{{ lastRunMeta.modelVersion }}</span>
+              </div>
             </div>
             <div class="actions">
+              <el-select v-model="textModelId" size="small" style="width: 220px" placeholder="选择 NLP 模型">
+                <el-option
+                  v-for="m in meta.models.filter((x) => x.type === 'text_pipeline')"
+                  :key="m.id"
+                  :label="`${m.name} ${m.version}`"
+                  :value="m.id"
+                />
+              </el-select>
+              <el-input-number v-model="confThres" size="small" :min="0.1" :max="0.95" :step="0.05" />
               <el-button type="primary" :loading="running" @click="onRun">运行文本预标管线</el-button>
               <el-button type="success" :loading="saving" :disabled="!doc" @click="onSave">保存人工修正</el-button>
             </div>

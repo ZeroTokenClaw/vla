@@ -149,8 +149,59 @@ function goMetrics() {
   if (exp.value) router.push(`/train/metrics/${exp.value.id}`)
 }
 
+const latestMetrics = computed(() => {
+  const m = exp.value?.metrics
+  if (!m) return null
+  const n = (m.loss || []).length
+  if (!n) return null
+  return {
+    epoch: n,
+    loss: m.loss[n - 1],
+    acc: m.acc?.[n - 1],
+    map: m.map?.[n - 1],
+    mapMetric: exp.value?.algorithm === 'det_yolo' ? 'mAP@0.5' : 'Acc/Proxy-mAP',
+  }
+})
+
+const augmentSamples = computed(() => {
+  const ops = exp.value?.augmentOps || []
+  if (!ops.length) return []
+  // 伪造增强样例条：用 CSS 滤镜示意，不依赖真实图像管线
+  return ops.map((op, i) => ({
+    op,
+    label: (
+      {
+        flip: '水平翻转',
+        color_jitter: '色彩抖动',
+        crop: '随机裁剪',
+        mixup: 'MixUp',
+        rotate: '旋转',
+        scale: '缩放',
+        brightness: '亮度',
+        contrast: '对比度',
+        noise: '噪声',
+      }[op] || op
+    ),
+    filter:
+      (
+        {
+          flip: 'none',
+          color_jitter: 'hue-rotate(25deg) saturate(1.3)',
+          crop: 'contrast(1.1)',
+          mixup: 'opacity(0.85)',
+          rotate: 'none',
+          scale: 'none',
+          brightness: 'brightness(1.25)',
+          contrast: 'contrast(1.35)',
+          noise: 'contrast(1.1) brightness(0.95)',
+        }[op] || 'none'
+      ),
+    transform: op === 'flip' ? 'scaleX(-1)' : op === 'rotate' ? 'rotate(8deg)' : op === 'scale' ? 'scale(1.12)' : 'none',
+    seed: i + 1,
+  }))
+})
+
 async function toggleAugmentDisplay() {
-  // read-only display of augment flag; actual toggle is at create time
   Message.info(
     exp.value?.augment
       ? `当前增强开启：${(exp.value.augmentOps || []).join(', ') || '默认'}`
@@ -239,14 +290,49 @@ async function toggleAugmentDisplay() {
           <div class="prog">
             <a-progress
               :percent="progressPct"
-              :status="exp.status === 'finished' ? 'success' : exp.status === 'running' ? undefined : undefined"
-              :="exp.status === 'running'"
+              :status="exp.status === 'finished' ? 'success' : undefined"
             />
+          </div>
+
+          <a-row v-if="latestMetrics" :gutter="12" class="metric-cards">
+            <a-col :span="6">
+              <a-statistic title="Epoch" :value="latestMetrics.epoch" />
+            </a-col>
+            <a-col :span="6">
+              <a-statistic title="Train Loss" :value="Number(latestMetrics.loss || 0)" :precision="4" />
+            </a-col>
+            <a-col :span="6">
+              <a-statistic title="Accuracy" :value="Number(latestMetrics.acc || 0)" :precision="4" />
+            </a-col>
+            <a-col :span="6">
+              <a-statistic :title="latestMetrics.mapMetric" :value="Number(latestMetrics.map || 0)" :precision="4" />
+            </a-col>
+          </a-row>
+          <a-empty v-else description="启动训练后此处展示伪造步进指标" />
+
+          <div v-if="augmentSamples.length" class="aug-block">
+            <h4>数据增强样例预览（伪造滤镜示意）</h4>
+            <div class="aug-grid">
+              <div v-for="s in augmentSamples" :key="s.op" class="aug-card">
+                <div
+                  class="aug-thumb"
+                  :style="{
+                    filter: s.filter,
+                    transform: s.transform,
+                    background: `linear-gradient(135deg, hsl(${40 + s.seed * 40}, 70%, 45%), hsl(${180 + s.seed * 20}, 55%, 35%))`,
+                  }"
+                >
+                  SRC
+                </div>
+                <div class="aug-lab">{{ s.label }}</div>
+                <code>{{ s.op }}</code>
+              </div>
+            </div>
           </div>
 
           <ProgressMock
             :running="exp.status === 'running'"
-            label="模拟训练步进（loss / acc / mAP 写入中）"
+            label="演示训练步进（伪造 loss / acc / mAP 写入中）"
             :duration="800"
           />
 
@@ -309,5 +395,45 @@ async function toggleAugmentDisplay() {
 h4 {
   margin: 8px 0 12px;
   font-size: 14px;
+}
+.metric-cards {
+  margin: 8px 0 12px;
+  padding: 12px;
+  background: #f7f8fa;
+  border-radius: 8px;
+}
+.aug-block {
+  margin-bottom: 12px;
+}
+.aug-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+.aug-card {
+  border: 1px solid #e5e6eb;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+  text-align: center;
+}
+.aug-thumb {
+  height: 72px;
+  border-radius: 6px;
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.08em;
+}
+.aug-lab {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.aug-card code {
+  font-size: 10px;
+  color: #86909c;
 }
 </style>

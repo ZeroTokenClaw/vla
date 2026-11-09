@@ -1,0 +1,397 @@
+﻿import dayjs from 'dayjs'
+import { businessDelay } from './delay'
+import { pushAudit } from '@/stores/audit'
+import { useAuthStore } from '@/stores/auth'
+import { users } from '@/mock/users'
+import {
+  createInitialTasks,
+  createInitialSamplePool,
+  SAMPLE_RULES,
+  SAMPLE_RESOURCES,
+  SPEC_SECTIONS,
+  TRANSITIONS,
+  MODALITIES,
+  STATUS_FLOW,
+  REJECT_REASONS,
+  PRIORITIES,
+} from '@/mock/qc'
+
+const state = {
+  tasks: createInitialTasks(),
+  sampleRules: SAMPLE_RULES.map((r) => ({ ...r, modalities: [...r.modalities] })),
+  samplePool: createInitialSamplePool(),
+  lastSampleRun: null,
+  seq: 340,
+}
+
+function now() {
+  return dayjs().format('YYYY-MM-DD HH:mm:ss')
+}
+
+function actorName() {
+  const auth = useAuthStore()
+  return auth.user?.name || '绯荤粺'
+}
+
+function findTask(id) {
+  return state.tasks.find((t) => t.id === id)
+}
+
+function userName(userId) {
+  return users.find((u) => u.id === userId)?.name || userId
+}
+
+export function getModalityMeta(value) {
+  return MODALITIES.find((m) => m.value === value)
+}
+
+export function getStatusMeta(value) {
+  return STATUS_FLOW.find((s) => s.value === value)
+}
+
+export function listMeta() {
+  return {
+    modalities: MODALITIES,
+    statuses: STATUS_FLOW,
+    rejectReasons: REJECT_REASONS,
+    priorities: PRIORITIES,
+    users: users.map((u) => ({ id: u.id, name: u.name, role: u.role, dept: u.dept })),
+  }
+}
+
+export async function listQcTasks(filters = {}) {
+  await businessDelay()
+  let rows = [...state.tasks]
+  if (filters.status) rows = rows.filter((t) => t.status === filters.status)
+  if (filters.modality) rows = rows.filter((t) => t.modality === filters.modality)
+  if (filters.keyword) {
+    const kw = String(filters.keyword).trim()
+    rows = rows.filter((t) => t.id.includes(kw) || t.title.includes(kw))
+  }
+  return rows.map((t) => ({ ...t }))
+}
+
+export async function getQcTask(id) {
+  await businessDelay()
+  const t = findTask(id)
+  if (!t) throw new Error(`宸ュ崟涓嶅瓨鍦細${id}`)
+  return {
+    ...t,
+    comments: [...t.comments],
+    history: [...t.history],
+    collaborators: [...t.collaborators],
+    labelsSnapshot: JSON.parse(JSON.stringify(t.labelsSnapshot)),
+    resource: SAMPLE_RESOURCES[t.modality]
+      ? JSON.parse(JSON.stringify(SAMPLE_RESOURCES[t.modality]))
+      : null,
+  }
+}
+
+export async function createQcTask(payload) {
+  await businessDelay()
+  const auth = useAuthStore()
+  state.seq += 1
+  const id = `ORN-JOB-2026-1104-${String(state.seq).padStart(4, '0')}`
+  const task = {
+    id,
+    title: payload.title || '鏈懡鍚嶅伐鍗?,
+    modality: payload.modality || 'text_ner',
+    status: 'created',
+    priority: payload.priority || 'medium',
+    creatorId: auth.user?.id || 'u-orn-admin',
+    assigneeId: null,
+    collaborators: [],
+    createdAt: now(),
+    updatedAt: now(),
+    batchId: payload.batchId || `BATCH-NEW-${state.seq}`,
+    sampleCount: payload.sampleCount || 10,
+    doneCount: 0,
+    resourceId: SAMPLE_RESOURCES[payload.modality || 'text_ner']?.id,
+    comments: [],
+    history: [{ at: now(), actor: actorName(), action: '鍒涘缓宸ュ崟', note: '' }],
+    rejectReason: null,
+    labelsSnapshot: JSON.parse(
+      JSON.stringify(
+        SAMPLE_RESOURCES[payload.modality || 'text_ner']?.entities ||
+          SAMPLE_RESOURCES[payload.modality || 'text_ner']?.masks ||
+          SAMPLE_RESOURCES[payload.modality || 'text_ner']?.slices ||
+          SAMPLE_RESOURCES[payload.modality || 'text_ner']?.detections ||
+          SAMPLE_RESOURCES[payload.modality || 'text_ner']?.segments ||
+          [],
+      ),
+    ),
+  }
+  state.tasks.unshift(task)
+  pushAudit({ action: '鍒涘缓璐ㄦ帶宸ュ崟', detail: `${id} 路 ${task.title}` })
+  return { ...task }
+}
+
+export async function assignTask(id, userId) {
+  await businessDelay()
+  const t = findTask(id)
+  if (!t) throw new Error(`宸ュ崟涓嶅瓨鍦細${id}`)
+  if (!['created', 'assigned', 'rejected'].includes(t.status) && t.status !== 'annotating') {
+    // allow reassign from created/assigned primarily
+  }
+  t.assigneeId = userId
+  if (!t.collaborators.includes(userId)) t.collaborators.push(userId)
+  if (t.status === 'created') t.status = 'assigned'
+  t.updatedAt = now()
+  t.history.push({
+    at: now(),
+    actor: actorName(),
+    action: `鍒嗛厤缁?{userName(userId)}`,
+    note: '',
+  })
+  pushAudit({ action: '鍒嗛厤宸ュ崟', detail: `${id} 鈫?${userName(userId)}` })
+  return { ...t }
+}
+
+/**
+ * @param {string} id
+ * @param {string} toStatus
+ * @param {string} [note]
+ * @param {{ rejectReason?: string }} [extra]
+ */
+export async function transition(id, toStatus, note = '', extra = {}) {
+  await businessDelay()
+  const auth = useAuthStore()
+  const t = findTask(id)
+  if (!t) throw new Error(`宸ュ崟涓嶅瓨鍦細${id}`)
+
+  const allowed = TRANSITIONS[t.status] || []
+  if (!allowed.includes(toStatus)) {
+    throw new Error(`涓嶅厑璁镐粠銆?{t.status}銆嶆祦杞埌銆?{toStatus}銆峘)
+  }
+
+  // Permission: annotator cannot final-approve (done) or pass final_review alone
+  if (toStatus === 'done' && auth.role === 'annotator') {
+    throw new Error('鏍囨敞鍛樻棤鏉冪粓瀹￠€氳繃')
+  }
+  if (toStatus === 'final_review' && auth.role === 'annotator') {
+    throw new Error('鏍囨敞鍛樻棤鏉冩帹杩涚粓瀹?)
+  }
+  if (toStatus === 'rejected' && auth.role === 'annotator') {
+    throw new Error('鏍囨敞鍛樻棤鏉冮┏鍥炲伐鍗?)
+  }
+  if (toStatus === 'rejected' && !extra.rejectReason && !note) {
+    throw new Error('椹冲洖蹇呴』濉啓鍘熷洜')
+  }
+
+  const from = t.status
+  t.status = toStatus
+  t.updatedAt = now()
+  if (toStatus === 'rejected') {
+    t.rejectReason = extra.rejectReason || 'other'
+  }
+  if (toStatus === 'annotating' && from === 'rejected') {
+    t.rejectReason = null
+  }
+  if (toStatus === 'done') {
+    t.doneCount = t.sampleCount
+  }
+
+  const statusLabel = getStatusMeta(toStatus)?.label || toStatus
+  const actionMap = {
+    assigned: '鍒嗛厤纭',
+    annotating: from === 'rejected' ? '椹冲洖鍚庨噸鏍? : '寮€濮嬫爣娉?,
+    reviewing: '鎻愪氦鍒濆',
+    final_review: '鍒濆閫氳繃',
+    done: '缁堝閫氳繃',
+    rejected: '椹冲洖杩斾慨',
+  }
+  t.history.push({
+    at: now(),
+    actor: actorName(),
+    action: actionMap[toStatus] || `娴佽浆鑷?{statusLabel}`,
+    note: note || (extra.rejectReason
+      ? REJECT_REASONS.find((r) => r.value === extra.rejectReason)?.label || extra.rejectReason
+      : ''),
+  })
+  pushAudit({
+    action: '宸ュ崟鐘舵€佹祦杞?,
+    detail: `${id} ${from} 鈫?${toStatus}${note ? ' 路 ' + note : ''}`,
+  })
+  return { ...t }
+}
+
+export async function addComment(id, body) {
+  await businessDelay()
+  const auth = useAuthStore()
+  const t = findTask(id)
+  if (!t) throw new Error(`宸ュ崟涓嶅瓨鍦細${id}`)
+  const comment = {
+    id: `c-${Date.now()}`,
+    at: now(),
+    authorId: auth.user?.id,
+    authorName: auth.user?.name || '鏈煡',
+    body: String(body || '').trim(),
+  }
+  if (!comment.body) throw new Error('鎵规敞鍐呭涓嶈兘涓虹┖')
+  t.comments.push(comment)
+  t.updatedAt = now()
+  pushAudit({ action: '娣诲姞鎵规敞', detail: `${id} 路 ${comment.body.slice(0, 40)}` })
+  return comment
+}
+
+export async function saveLabels(id, labels) {
+  await businessDelay()
+  const t = findTask(id)
+  if (!t) throw new Error(`宸ュ崟涓嶅瓨鍦細${id}`)
+  t.labelsSnapshot = JSON.parse(JSON.stringify(labels))
+  t.updatedAt = now()
+  t.history.push({ at: now(), actor: actorName(), action: '淇濆瓨鏍囨敞缁撴灉', note: '' })
+  pushAudit({ action: '淇濆瓨鏍囨敞', detail: id })
+  return { ...t }
+}
+
+export async function listSampleRules() {
+  await businessDelay()
+  return state.sampleRules.map((r) => ({ ...r, modalities: [...r.modalities] }))
+}
+
+export async function updateSampleRule(id, patch) {
+  await businessDelay()
+  const rule = state.sampleRules.find((r) => r.id === id)
+  if (!rule) throw new Error('瑙勫垯涓嶅瓨鍦?)
+  Object.assign(rule, patch)
+  if (patch.modalities) rule.modalities = [...patch.modalities]
+  pushAudit({ action: '鏇存柊鎶芥瑙勫垯', detail: `${id} 路 ${rule.name}` })
+  return { ...rule, modalities: [...rule.modalities] }
+}
+
+export async function runSampleCheck(ruleId) {
+  await businessDelay()
+  const rule = state.sampleRules.find((r) => r.id === ruleId)
+  if (!rule) throw new Error('瑙勫垯涓嶅瓨鍦?)
+  if (!rule.enabled) throw new Error('瑙勫垯鏈惎鐢?)
+
+  const candidates = state.samplePool.filter(
+    (s) => s.status === 'pending' && rule.modalities.includes(s.modality),
+  )
+  const n = Math.max(1, Math.min(candidates.length, Math.ceil(candidates.length * rule.ratio) || 1))
+  // shuffle
+  const shuffled = [...candidates].sort(() => Math.random() - 0.5)
+  const picked = shuffled.slice(0, n)
+  const run = {
+    id: `RUN-${Date.now()}`,
+    ruleId,
+    ruleName: rule.name,
+    at: now(),
+    pickedIds: picked.map((p) => p.id),
+    count: picked.length,
+  }
+  state.lastSampleRun = run
+  // mark picked as checking
+  picked.forEach((p) => {
+    p.status = 'checking'
+  })
+  pushAudit({
+    action: '鎵ц闅忔満鎶芥',
+    detail: `${rule.name} 路 鎶戒腑 ${picked.length} 鏉,
+  })
+  return {
+    run,
+    samples: state.samplePool
+      .filter((s) => picked.some((p) => p.id === s.id))
+      .map((s) => ({ ...s })),
+  }
+}
+
+export async function listSamplePool(filters = {}) {
+  await businessDelay()
+  let rows = [...state.samplePool]
+  if (filters.status) rows = rows.filter((s) => s.status === filters.status)
+  if (filters.modality) rows = rows.filter((s) => s.modality === filters.modality)
+  return rows
+}
+
+export async function passSample(id) {
+  await businessDelay()
+  const s = state.samplePool.find((x) => x.id === id)
+  if (!s) throw new Error('鏍锋湰涓嶅瓨鍦?)
+  s.status = 'pass'
+  s.reason = null
+  pushAudit({ action: '鎶芥鍚堟牸', detail: id })
+  return { ...s }
+}
+
+export async function rejectSample(id, reason) {
+  await businessDelay()
+  const s = state.samplePool.find((x) => x.id === id)
+  if (!s) throw new Error('鏍锋湰涓嶅瓨鍦?)
+  if (!reason) throw new Error('椹冲洖蹇呴』濉啓鍘熷洜')
+  s.status = 'fail'
+  s.reason = reason
+  pushAudit({ action: '鎶芥涓嶅悎鏍?, detail: `${id} 路 ${reason}` })
+  return { ...s }
+}
+
+export async function refluxPass(ids = []) {
+  await businessDelay()
+  const list = ids.length ? ids : state.samplePool.filter((s) => s.status === 'pass' && !s.refluxed).map((s) => s.id)
+  let count = 0
+  for (const id of list) {
+    const s = state.samplePool.find((x) => x.id === id)
+    if (s && s.status === 'pass') {
+      s.refluxed = true
+      s.status = 'refluxed'
+      count += 1
+      // mark related task
+      const t = findTask(s.taskId)
+      if (t) t.refluxed = true
+    }
+  }
+  pushAudit({ action: '鍚堟牸鏁版嵁鍥炴祦', detail: `鍥炴祦搴撳啓鍏?${count} 鏉 })
+  return { count, ids: list }
+}
+
+export async function getSpecDoc() {
+  await businessDelay()
+  return SPEC_SECTIONS.map((s) => ({ ...s }))
+}
+
+export async function getLastSampleRun() {
+  await businessDelay()
+  return state.lastSampleRun ? { ...state.lastSampleRun } : null
+}
+
+export { SAMPLE_RESOURCES, MODALITIES, STATUS_FLOW, REJECT_REASONS, PRIORITIES, TRANSITIONS }
+
+/** Demo accounts for Orion Annotate role switching. */
+export const users = [
+  {
+    id: 'u-orn-admin',
+    name: '鍛ㄦ槑杞?,
+    role: 'admin',
+    account: 'demo.admin',
+    dept: 'Orion Ops',
+  },
+  {
+    id: 'u-orn-reviewer',
+    name: '鏋楁檽钀?,
+    role: 'reviewer',
+    account: 'demo.reviewer',
+    dept: 'Reviewer Squad',
+  },
+  {
+    id: 'u-orn-annotator',
+    name: '闄堟€濊繙',
+    role: 'annotator',
+    account: 'demo.annotator',
+    dept: 'Annotator Team',
+  },
+  {
+    id: 'u-orn-annotator-2',
+    name: '璧甸洦妗?,
+    role: 'annotator',
+    account: 'zhao.yt',
+    dept: 'Annotator Team',
+  },
+]
+
+export const roleOptions = [
+  { value: 'annotator', labelKey: 'annotator' },
+  { value: 'reviewer', labelKey: 'reviewer' },
+  { value: 'admin', labelKey: 'admin' },
+]

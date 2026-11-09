@@ -127,8 +127,29 @@ onMounted(async () => {
   }
 })
 const scTableCols1 = [
-  
+  { title: '选择', slotName: 'check', width: 70 },
+  { title: '问题号', dataIndex: 'id', width: 100 },
+  { title: '类型', slotName: 'type', width: 140 },
+  { title: '帧', dataIndex: 'frame', width: 70 },
+  { title: '等级', dataIndex: 'severity', width: 90 },
+  { title: '样本', dataIndex: 'sampleId', width: 120 },
+  { title: '说明', dataIndex: 'message', ellipsis: true },
+  { title: '标记', slotName: 'flag', width: 100 },
 ]
+
+const selectedIssue = ref(null)
+
+function toggleSelect(id, checked) {
+  if (checked) {
+    if (!selected.value.includes(id)) selected.value.push(id)
+  } else {
+    selected.value = selected.value.filter((x) => x !== id)
+  }
+}
+
+function openIssue(row) {
+  selectedIssue.value = row
+}
 </script>
 
 <template>
@@ -191,7 +212,43 @@ const scTableCols1 = [
           class="mb"
         />
 
-        <a-table :columns="scTableCols1" :data="visibleIssues" row-key="id" :pagination="false" size="small"></a-table>
+        <a-table
+          :columns="scTableCols1"
+          :data="visibleIssues"
+          row-key="id"
+          :pagination="false"
+          size="small"
+          @row-click="openIssue"
+        >
+          <template #check="{ record }">
+            <a-checkbox
+              :model-value="selected.includes(record.id)"
+              @change="(v) => toggleSelect(record.id, v)"
+              @click.stop
+            />
+          </template>
+          <template #type="{ record }">
+            <a-tag size="small" :color="issueTypeColor(record.type)">{{ issueTypeLabel(record.type) }}</a-tag>
+          </template>
+          <template #flag="{ record }">
+            <a-tag v-if="record.unqualified" color="red" size="small">不合格</a-tag>
+            <a-tag v-else-if="record.filtered" color="gray" size="small">已过滤</a-tag>
+            <span v-else class="muted">—</span>
+          </template>
+        </a-table>
+
+        <a-card v-if="selectedIssue" class="detail-card" title="问题定位详情（伪造检测结果）">
+          <a-descriptions :column="2" size="small" bordered>
+            <a-descriptions-item label="问题号">{{ selectedIssue.id }}</a-descriptions-item>
+            <a-descriptions-item label="样本">{{ selectedIssue.sampleId }}</a-descriptions-item>
+            <a-descriptions-item label="类型">{{ issueTypeLabel(selectedIssue.type) }}</a-descriptions-item>
+            <a-descriptions-item label="帧定位">F{{ selectedIssue.frame }}</a-descriptions-item>
+            <a-descriptions-item label="严重度">{{ selectedIssue.severity }}</a-descriptions-item>
+            <a-descriptions-item label="追溯">视频帧 + 动作片段 + 任务指令</a-descriptions-item>
+            <a-descriptions-item label="说明" :span="2">{{ selectedIssue.message }}</a-descriptions-item>
+          </a-descriptions>
+          <pre class="json-peek">{{ JSON.stringify(selectedIssue, null, 2) }}</pre>
+        </a-card>
       </a-card>
     </template>
 
@@ -238,5 +295,21 @@ const scTableCols1 = [
 }
 .mb {
   margin-bottom: 12px;
+}
+.detail-card {
+  margin-top: 12px;
+}
+.muted {
+  color: #9ca3af;
+}
+.json-peek {
+  margin-top: 10px;
+  max-height: 160px;
+  overflow: auto;
+  font-size: 11px;
+  background: #1d2129;
+  color: #c9cdd4;
+  padding: 8px;
+  border-radius: 6px;
 }
 </style>

@@ -236,6 +236,27 @@ function mapTagColor(t) {
               <div v-if="h.note" class="note">{{ h.note }}</div>
             </a-timeline-item>
           </a-timeline>
+
+          <a-divider />
+          <h4>标注快照预览（审核对照）</h4>
+          <a-alert
+            type="info"
+            show-icon
+            style="margin-bottom: 8px"
+            message="以下为 labelsSnapshot 伪造预览，便于审核员对照模态结果。"
+          />
+          <pre class="snap">{{ JSON.stringify(task.labelsSnapshot || [], null, 2) }}</pre>
+          <div v-if="task.rejectChain?.length" class="reject-chain">
+            <h4>驳回链</h4>
+            <a-steps direction="vertical" size="small" :current="task.rejectChain.length">
+              <a-step
+                v-for="(r, i) in task.rejectChain"
+                :key="i"
+                :title="r.reason || r.rejectReason || '驳回'"
+                :description="`${r.at || ''} · ${r.actor || ''} · ${r.note || ''}`"
+              />
+            </a-steps>
+          </div>
         </a-card>
       </a-col>
 
@@ -356,5 +377,17 @@ function mapTagColor(t) {
   margin-top: 10px;
   color: #d48806;
   font-size: 12px;
+}
+.snap {
+  max-height: 220px;
+  overflow: auto;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+.reject-chain {
+  margin-top: 12px;
 }
 </style>

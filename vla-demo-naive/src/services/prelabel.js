@@ -151,10 +151,15 @@ export async function getVisionImage(imageId) {
     status: v.status,
     ocr: clone(v.ocr),
     yolo: clone(v.yolo),
+    ocrModel: clone(v.ocrModel),
+    yoloModel: clone(v.yoloModel),
     labelSet: [...v.labelSet],
     ocrCorrected: v.ocrCorrected,
     yoloCorrected: v.yoloCorrected,
     changeLog: [...v.changeLog],
+    batchId: v.batchId,
+    spotCheckPass: v.spotCheckPass,
+    progressPct: v.progressPct,
   }
 }
 

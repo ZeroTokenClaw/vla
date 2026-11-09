@@ -1,0 +1,7 @@
+﻿const fs = require('fs')
+const s = fs.readFileSync('E:/omp/vla/vla-demo-naive/src/views/prelabel/TextPrelabel.vue', 'utf8')
+const i = s.indexOf('class="side"')
+console.log(JSON.stringify(s.slice(i, i + 1400)))
+console.log('--- loadList ---')
+const j = s.indexOf('async function loadList')
+console.log(s.slice(j, j + 250))

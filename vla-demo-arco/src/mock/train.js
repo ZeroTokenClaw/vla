@@ -18,11 +18,11 @@ export const MODELS = [
 ]
 
 export const GPU_CARDS = [
-  { id: 'gpu-0', name: 'NVIDIA A100-0', memoryGb: 80, free: true },
-  { id: 'gpu-1', name: 'NVIDIA A100-1', memoryGb: 80, free: true },
-  { id: 'gpu-2', name: 'NVIDIA V100-0', memoryGb: 32, free: true },
-  { id: 'gpu-3', name: 'NVIDIA V100-1', memoryGb: 32, free: false },
-  { id: 'gpu-4', name: 'NVIDIA T4-0', memoryGb: 16, free: true },
+  { id: 'gpu-0', name: 'NVIDIA A100-0', memoryGb: 80, free: true, nodeName: 'sc-node-a01', utilPct: 12, memUsedGb: 6.2, temperature: 41, powerW: 95 },
+  { id: 'gpu-1', name: 'NVIDIA A100-1', memoryGb: 80, free: true, nodeName: 'sc-node-a01', utilPct: 8, memUsedGb: 3.1, temperature: 39, powerW: 82 },
+  { id: 'gpu-2', name: 'NVIDIA V100-0', memoryGb: 32, free: true, nodeName: 'sc-node-b02', utilPct: 5, memUsedGb: 1.4, temperature: 36, powerW: 70 },
+  { id: 'gpu-3', name: 'NVIDIA V100-1', memoryGb: 32, free: false, nodeName: 'sc-node-b02', utilPct: 87, memUsedGb: 28.4, temperature: 72, powerW: 245 },
+  { id: 'gpu-4', name: 'NVIDIA T4-0', memoryGb: 16, free: true, nodeName: 'sc-node-c03', utilPct: 2, memUsedGb: 0.8, temperature: 34, powerW: 28 },
 ]
 
 export const AUGMENT_OPTIONS = [

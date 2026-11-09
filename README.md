@@ -2,11 +2,32 @@
 
 四个功能完整、风格互异的前端演示项目，覆盖同一套评分点（多模态质控 / 自动化预标注 / VLA 采集标注 / 算法训练验证），用于分别录制演示视频。本地 mock + 脱敏样例，无需后端。
 
+## 独立工程版（星算 / Arco）
+
+基于 `vla-demo-arco` 升级的真实后端工程已启动，设计与代码见：
+
+- 产品交付物：`docs/product/starcompute-arco/`（PRD / 架构 / ER / API / 算法 / 计划 / 测试 / 演示脚本）
+- 后端与算法：`platform/`（FastAPI + SQLite + lite NLP/Vision/质检/训练）
+
+```bash
+cd E:\omp\vla\platform\backend
+.\.venv\Scripts\activate   # 首次需 python -m venv .venv && pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+# 文档 http://127.0.0.1:8000/docs  账号 admin / admin123
+```
+
+前端对接：在 `vla-demo-arco` 配置 `VITE_API_BASE=http://127.0.0.1:8000/api/v1`（见 `.env.example`）；未配置时仍走本地 mock。
+
 设计文档：`docs/superpowers/specs/2026-11-04-vla-four-style-demos-design.md`  
 实现计划：`docs/superpowers/plans/2026-11-04-vla-four-vendor-demos.md`  
 验收清单：`docs/superpowers/plans/acceptance-checklist.md`
 厚数据加厚规格：`docs/superpowers/specs/2026-11-04-vla-demo-data-enrichment-design.md`  
 厚数据实现计划：`docs/superpowers/plans/2026-11-05-vla-demo-data-enrichment.md`
+
+**数联（element）产品功能分析交付**：`docs/product/datalink-element/`  
+**星算（arco）产品设计交付**：`docs/product/starcompute-arco/`  
+**Orion/ADF（antd）差距分析**：`docs/product/aidatafactory-antd/`  
+**EIDE（naive）独立研发交付（20 分）**：`docs/product/eide-naive/`
 
 ## 四套对比
 
@@ -14,7 +35,7 @@
 |------|------|-------|------|-------------------|
 | **数联标注云** DataLink Label | `vla-demo-element` | Element Plus | **5101** | 企业蓝灰「工单流」ToB：待办工单、侧栏菜单、审计抽屉 |
 | **Orion Annotate** | `vla-demo-antd` | Ant Design Vue | **5102** | 国际 SaaS：顶栏横向导航、中英混排、Product Tour + Dataset 卡片 |
-| **灵眸 VLA Studio** | `vla-demo-naive` | Naive UI（深色） | **5103** | 具身智能创作台：图标轨导航、会话时间轴、底部 Console 日志 |
+| **EIDE**（基线灵眸） | `vla-demo-naive` | Naive UI（深色） | **5103** | 数据画像·质量评分·VLA 行为理解·多模型评测追溯 |
 | **星算训练台** StarCompute | `vla-demo-arco` | Arco Design | **5104** | 云厂商算法台：GPU/实验仪表盘、算力池、Checkpoint 术语 |
 
 任务号前缀互不撞车：`DL-` / `ORN-` / `LM-` / `SC-`。

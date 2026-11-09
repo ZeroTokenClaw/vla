@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -26,10 +26,21 @@ const task = ref(null)
 const modalityPreview = ref('text_ner')
 const selectedLabel = ref('')
 const draftLabels = ref([])
+const currentFrame = ref(0)
+const showTrackOnly = ref('')
+const pcRotate = reactive({ x: -18, y: 24 })
 
 const currentId = computed(() => route.params.id)
 
-const resource = computed(() => task.value?.resource || SAMPLE_RESOURCES[modalityPreview.value])
+/** 左侧模态切换时必须换样例资源；否则点云/图像 URL 会落到文本工单上变成空图 */
+const resource = computed(() => {
+  const demo = SAMPLE_RESOURCES[modalityPreview.value]
+  if (!task.value) return demo
+  if (task.value.modality === modalityPreview.value && task.value.resource) {
+    return task.value.resource
+  }
+  return demo || task.value.resource
+})
 
 const canSubmitReview = computed(() => {
   if (!task.value) return false
@@ -109,6 +120,12 @@ function addDemoLabel() {
       color: '#f5222d',
       area: 0.05,
       conf: 0.8,
+      polygon: [
+        [0.3, 0.3],
+        [0.45, 0.3],
+        [0.45, 0.45],
+        [0.3, 0.45],
+      ],
     })
   } else if (m === 'audio_slice') {
     draftLabels.value.push({
@@ -121,13 +138,14 @@ function addDemoLabel() {
   } else if (m === 'video_det') {
     draftLabels.value.push({
       id,
-      frame: 1,
+      frame: currentFrame.value || 1,
       label: selectedLabel.value || 'other',
       x: 0.1,
       y: 0.1,
       w: 0.2,
       h: 0.2,
       conf: 0.8,
+      trackId: `trk-${selectedLabel.value || 'new'}`,
     })
   } else {
     draftLabels.value.push({
@@ -200,6 +218,19 @@ const highlightedText = computed(() => {
   if (cursor < text.length) parts.push({ t: text.slice(cursor), entity: null })
   return parts
 })
+
+const videoFrameLabels = computed(() => {
+  let rows = draftLabels.value.filter((d) => Number(d.frame) === Number(currentFrame.value))
+  if (showTrackOnly.value) rows = rows.filter((d) => d.trackId === showTrackOnly.value)
+  return rows
+})
+
+const trackOptions = computed(() => {
+  const set = new Set(draftLabels.value.map((d) => d.trackId).filter(Boolean))
+  return [...set]
+})
+
+const maxFrame = computed(() => Number(resource.value?.frames || 180))
 </script>
 
 <template>
@@ -216,8 +247,9 @@ const highlightedText = computed(() => {
       <!-- Left: resources -->
       <el-card shadow="never" class="pane">
         <template #header>
-          <span>资源 / 模态</span>
+          <span>仓储样例 / 模态</span>
         </template>
+        <div class="domain-chip">DataLink · 仓储物流域</div>
         <div class="mod-list">
           <div
             v-for="m in MODALITIES"
@@ -228,6 +260,7 @@ const highlightedText = computed(() => {
           >
             <div class="mod-title">{{ m.label }}</div>
             <div class="mod-sub">{{ m.short }}</div>
+            <div class="mod-hint">{{ m.hint }}</div>
           </div>
         </div>
         <el-divider />
@@ -281,22 +314,38 @@ const highlightedText = computed(() => {
         <div v-else-if="modalityPreview === 'seg'" class="canvas img-canvas">
           <div class="img-wrap">
             <img :src="resource.imageUrl" alt="seg" />
+            <svg class="poly-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <polygon
+                v-for="m in draftLabels"
+                :key="m.id"
+                :points="
+                  (m.polygon || [])
+                    .map((p) => `${p[0] * 100},${p[1] * 100}`)
+                    .join(' ')
+                "
+                :fill="(m.color || '#1677ff') + '55'"
+                :stroke="m.color || '#1677ff'"
+                stroke-width="0.6"
+              />
+            </svg>
             <div
               v-for="(m, idx) in draftLabels"
-              :key="m.id"
+              :key="'cap-' + m.id"
               class="mask-box"
               :style="{
-                left: 8 + (idx % 3) * 28 + '%',
-                top: 12 + Math.floor(idx / 3) * 30 + '%',
-                width: 22 + '%',
-                height: 22 + '%',
+                left: (m.polygon?.[0]?.[0] || 0.08 + (idx % 3) * 0.28) * 100 + '%',
+                top: (m.polygon?.[0]?.[1] || 0.12 + Math.floor(idx / 3) * 0.3) * 100 + '%',
                 borderColor: m.color,
-                background: m.color + '33',
+                background: 'transparent',
+                width: 'auto',
+                height: 'auto',
+                padding: '2px 6px',
               }"
             >
               {{ m.label }}
             </div>
           </div>
+          <div class="axis">多边形顶点可在右侧标签中查看（演示）</div>
         </div>
 
         <!-- audio -->
@@ -339,7 +388,7 @@ const highlightedText = computed(() => {
             />
             <img v-else :src="resource.posterUrl" alt="video" />
             <div
-              v-for="d in draftLabels"
+              v-for="d in videoFrameLabels"
               :key="d.id"
               class="det-box"
               :style="{
@@ -349,15 +398,42 @@ const highlightedText = computed(() => {
                 height: d.h * 100 + '%',
               }"
             >
-              {{ d.label }}@f{{ d.frame }}
+              {{ d.label }} · {{ d.trackId || 'no-track' }} @f{{ d.frame }}
             </div>
           </div>
-          <div class="axis">FPS {{ resource.fps }} · 总帧 {{ resource.frames }}</div>
+          <div class="frame-bar">
+            <span>帧 {{ currentFrame }} / {{ maxFrame }}</span>
+            <el-slider v-model="currentFrame" :min="0" :max="maxFrame" :step="1" style="flex: 1" />
+            <el-select v-model="showTrackOnly" clearable placeholder="按 track 过滤" style="width: 150px" size="small">
+              <el-option v-for="t in trackOptions" :key="t" :label="t" :value="t" />
+            </el-select>
+          </div>
+          <div class="axis">
+            FPS {{ resource.fps }} · 当前帧框 {{ videoFrameLabels.length }} · 跨帧跟踪 trackId
+          </div>
         </div>
 
         <!-- point cloud -->
         <div v-else class="canvas pc-canvas">
-          <img :src="resource.previewUrl" alt="pointcloud" class="pc-img" />
+          <p class="axis" style="margin-bottom: 8px">拖动滑条模拟三维旋转（演示渲染，非真实点云引擎）</p>
+          <div
+            class="pc-stage"
+            :style="{ transform: `perspective(800px) rotateX(${pcRotate.x}deg) rotateY(${pcRotate.y}deg)` }"
+          >
+            <img
+              v-if="resource?.previewUrl"
+              :src="resource.previewUrl"
+              alt="pointcloud"
+              class="pc-img"
+            />
+            <el-empty v-else description="点云预览图缺失" :image-size="80" />
+          </div>
+          <div class="frame-bar">
+            <span>俯仰</span>
+            <el-slider v-model="pcRotate.x" :min="-60" :max="60" style="flex: 1" />
+            <span>水平</span>
+            <el-slider v-model="pcRotate.y" :min="-180" :max="180" style="flex: 1" />
+          </div>
           <el-table :data="draftLabels" size="small" stripe style="margin-top: 12px">
             <el-table-column prop="label" label="分割类别" />
             <el-table-column prop="points" label="点数" width="100" />
@@ -367,7 +443,7 @@ const highlightedText = computed(() => {
               </template>
             </el-table-column>
           </el-table>
-          <div class="axis">总点数 {{ resource.points?.toLocaleString?.() || resource.points }}</div>
+          <div class="axis">总点数 {{ resource?.points?.toLocaleString?.() || resource?.points || '—' }}</div>
         </div>
       </el-card>
 
@@ -394,7 +470,11 @@ const highlightedText = computed(() => {
           <div v-for="item in draftLabels" :key="item.id" class="label-row">
             <div class="label-main">
               <strong>{{ item.type || item.label }}</strong>
-              <span class="muted">{{ item.text || item.id }}</span>
+              <span class="muted">
+                {{ item.text || item.trackId || item.id }}
+                <template v-if="item.frame != null"> · f{{ item.frame }}</template>
+                <template v-if="item.polygon?.length"> · {{ item.polygon.length }} 顶点</template>
+              </span>
             </div>
             <el-button link type="danger" size="small" @click="removeLabel(item.id)">删</el-button>
           </div>
@@ -430,19 +510,31 @@ const highlightedText = computed(() => {
 .pane {
   min-height: 520px;
 }
+.domain-chip {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 11px;
+  font-weight: 600;
+}
 .mod-item {
   padding: 8px 10px;
   border-radius: 6px;
   cursor: pointer;
   border: 1px solid transparent;
   margin-bottom: 6px;
+  border-left: 3px solid #bae6fd;
 }
 .mod-item:hover {
-  background: #f5f7fa;
+  background: #f0f9ff;
 }
 .mod-item.active {
-  background: #e6f4ff;
-  border-color: #91caff;
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  border-left-color: #0284c7;
 }
 .mod-title {
   font-size: 13px;
@@ -450,7 +542,12 @@ const highlightedText = computed(() => {
 }
 .mod-sub {
   font-size: 11px;
-  color: #6b7280;
+  color: #0369a1;
+}
+.mod-hint {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
 }
 .sec {
   font-size: 12px;
@@ -500,6 +597,21 @@ const highlightedText = computed(() => {
   display: block;
   width: 100%;
   height: auto;
+}
+.poly-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.frame-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: #6b7280;
 }
 .mask-box,
 .det-box {

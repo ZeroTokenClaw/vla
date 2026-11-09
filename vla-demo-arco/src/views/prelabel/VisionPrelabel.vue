@@ -267,13 +267,25 @@ const showYolo = computed(() => layer.value === 'yolo' || layer.value === 'both'
                 <a-empty v-if="!yoloDraft.length" description="暂无 YOLO 框" />
               </div>
 
-              <a-alert
-                v-if="selectedBox"
-                style="margin-top: 10px"
-                type="info"
-                :closable="false"
-                :title="`选中框 ${selectedBox.id} · ${selectedBox.label} · x=${selectedBox.x.toFixed(2)} y=${selectedBox.y.toFixed(2)}`"
-              />
+              <a-card v-if="selectedBox" class="box-editor" title="选中框属性（可微调）" size="small">
+                <a-form :auto-label-width="true" size="mini">
+                  <a-form-item label="label">
+                    <a-select v-model="selectedBox.label" style="width: 100%">
+                      <a-option v-for="lb in image?.labelSet || []" :key="lb" :value="lb" :label="lb" />
+                    </a-select>
+                  </a-form-item>
+                  <a-form-item label="conf">
+                    <a-slider v-model="selectedBox.conf" :min="0.1" :max="1" :step="0.01" />
+                  </a-form-item>
+                  <a-row :gutter="8">
+                    <a-col :span="12"><a-form-item label="x"><a-input-number v-model="selectedBox.x" :min="0" :max="1" :step="0.01" /></a-form-item></a-col>
+                    <a-col :span="12"><a-form-item label="y"><a-input-number v-model="selectedBox.y" :min="0" :max="1" :step="0.01" /></a-form-item></a-col>
+                    <a-col :span="12"><a-form-item label="w"><a-input-number v-model="selectedBox.w" :min="0.02" :max="1" :step="0.01" /></a-form-item></a-col>
+                    <a-col :span="12"><a-form-item label="h"><a-input-number v-model="selectedBox.h" :min="0.02" :max="1" :step="0.01" /></a-form-item></a-col>
+                  </a-row>
+                </a-form>
+                <pre class="json-peek">{{ JSON.stringify(selectedBox, null, 2) }}</pre>
+              </a-card>
             </a-col>
           </a-row>
         </a-card>
@@ -414,4 +426,15 @@ const showYolo = computed(() => layer.value === 'yolo' || layer.value === 'both'
   min-width: 36px;
 }
 .pager { display:flex; justify-content:flex-end; margin-top:12px; }
+.box-editor { margin-top: 10px; }
+.json-peek {
+  margin-top: 8px;
+  max-height: 120px;
+  overflow: auto;
+  font-size: 11px;
+  background: #1d2129;
+  color: #c9cdd4;
+  padding: 8px;
+  border-radius: 6px;
+}
 </style>

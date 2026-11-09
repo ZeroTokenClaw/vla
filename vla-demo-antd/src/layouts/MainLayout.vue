@@ -6,10 +6,13 @@ import RoleSwitch from '@/components/RoleSwitch.vue'
 import AuditLogDrawer from '@/components/AuditLogDrawer.vue'
 import {
   HomeOutlined,
+  ClusterOutlined,
   SafetyCertificateOutlined,
   ThunderboltOutlined,
   VideoCameraOutlined,
   ExperimentOutlined,
+  SettingOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons-vue'
 
 const route = useRoute()
@@ -17,18 +20,24 @@ const router = useRouter()
 
 const menus = [
   { path: '/', label: copy.modules.home, icon: HomeOutlined },
+  { path: '/factory', label: copy.modules.factory, icon: ClusterOutlined },
   { path: '/qc', label: copy.modules.qc, icon: SafetyCertificateOutlined },
   { path: '/prelabel', label: copy.modules.prelabel, icon: ThunderboltOutlined },
   { path: '/vla', label: copy.modules.vla, icon: VideoCameraOutlined },
   { path: '/train', label: copy.modules.train, icon: ExperimentOutlined },
+  { path: '/analytics', label: 'Analytics 分析', icon: BarChartOutlined },
+  { path: '/system', label: copy.modules.system, icon: SettingOutlined },
 ]
 
 const selectedKeys = computed(() => {
   const p = route.path
+  if (p.startsWith('/factory')) return ['/factory']
   if (p.startsWith('/qc')) return ['/qc']
   if (p.startsWith('/prelabel')) return ['/prelabel']
   if (p.startsWith('/vla')) return ['/vla']
   if (p.startsWith('/train')) return ['/train']
+  if (p.startsWith('/analytics')) return ['/analytics']
+  if (p.startsWith('/system')) return ['/system']
   return ['/']
 })
 
@@ -41,10 +50,10 @@ function onMenuClick({ key }) {
   <a-layout class="orn-shell">
     <a-layout-header class="orn-top">
       <div class="orn-brand" @click="router.push('/')">
-        <div class="orn-mark">OR</div>
+        <div class="orn-mark">AF</div>
         <div>
           <div class="orn-name">{{ copy.productName }}</div>
-          <div class="orn-vendor">{{ copy.vendor }} · Annotation Cloud</div>
+          <div class="orn-vendor">{{ copy.vendor }} · Automation Pipeline</div>
         </div>
       </div>
       <a-menu
@@ -87,14 +96,14 @@ function onMenuClick({ key }) {
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  min-width: 180px;
+  min-width: 200px;
   line-height: 1.2;
 }
 .orn-mark {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #1677ff, #69b1ff);
+  background: linear-gradient(135deg, #1677ff, #13c2c2);
   color: #fff;
   font-weight: 800;
   font-size: 13px;
@@ -120,13 +129,12 @@ function onMenuClick({ key }) {
 .orn-top-right {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-left: auto;
+  gap: 10px;
 }
 .orn-content {
-  padding: 20px 24px 32px;
-  max-width: 1280px;
-  width: 100%;
+  padding: 16px 20px 28px;
+  max-width: 1440px;
   margin: 0 auto;
+  width: 100%;
 }
 </style>

@@ -101,6 +101,34 @@ function stepStatus(key) {
   if (job.value.step === key) return 'process'
   return 'wait'
 }
+
+/** 验收详情伪造对照：模型原始 vs 人工最终（演示用） */
+const acceptDiff = computed(() => {
+  if (!job.value) return null
+  return (
+    job.value.diffPreview || {
+      model: {
+        classify: '投诉-物流延误',
+        entities: 5,
+        relations: 2,
+        note: '含故意错误类型 ORG / SHIPS_TO',
+      },
+      human: {
+        classify: '投诉-包裹破损',
+        entities: 5,
+        relations: 2,
+        note: 'ADDRESS + RETURN_TO 已人工修正',
+      },
+      checklist: [
+        { item: '分类是否正确', pass: job.value.stepDone.includes('confirm') },
+        { item: '实体边界与类型', pass: job.value.stepDone.includes('annotate') },
+        { item: '关系与结构化字段', pass: job.value.stepDone.includes('annotate') },
+        { item: '质检意见已填写', pass: job.value.stepDone.includes('qa') || !!qaNote.value },
+        { item: '最终验收入库', pass: job.value.status === 'accepted' },
+      ],
+    }
+  )
+})
 </script>
 
 <template>
@@ -163,30 +191,74 @@ function stepStatus(key) {
 
             <ul class="checklist">
               <li v-for="s in ACCEPT_STEPS" :key="s.key">
-                <span v-if="job.stepDone.includes(s.key)" color="#52c41a"><Select /></span>
-                <span v-else-if="job.step === s.key" color="#1677ff"><Loading /></span>
-                <span v-else color="#d1d5db"><Clock /></span>
+                <a-tag
+                  size="small"
+                  :color="job.stepDone.includes(s.key) ? 'green' : job.step === s.key ? 'arcoblue' : 'gray'"
+                >
+                  {{ job.stepDone.includes(s.key) ? '✓' : job.step === s.key ? '●' : '○' }}
+                </a-tag>
                 <span :class="{ done: job.stepDone.includes(s.key), current: job.step === s.key }">
                   {{ s.label }}
                 </span>
               </li>
             </ul>
 
+            <a-row v-if="acceptDiff" :gutter="12" class="diff-panels">
+              <a-col :span="12">
+                <a-card size="small" title="模型原始结果（伪造）">
+                  <a-descriptions :column="1" size="mini" bordered>
+                    <a-descriptions-item label="分类">{{ acceptDiff.model.classify }}</a-descriptions-item>
+                    <a-descriptions-item label="实体数">{{ acceptDiff.model.entities }}</a-descriptions-item>
+                    <a-descriptions-item label="关系数">{{ acceptDiff.model.relations }}</a-descriptions-item>
+                    <a-descriptions-item label="备注">{{ acceptDiff.model.note }}</a-descriptions-item>
+                  </a-descriptions>
+                </a-card>
+              </a-col>
+              <a-col :span="12">
+                <a-card size="small" title="人工最终结果（伪造）">
+                  <a-descriptions :column="1" size="mini" bordered>
+                    <a-descriptions-item label="分类">{{ acceptDiff.human.classify }}</a-descriptions-item>
+                    <a-descriptions-item label="实体数">{{ acceptDiff.human.entities }}</a-descriptions-item>
+                    <a-descriptions-item label="关系数">{{ acceptDiff.human.relations }}</a-descriptions-item>
+                    <a-descriptions-item label="备注">{{ acceptDiff.human.note }}</a-descriptions-item>
+                  </a-descriptions>
+                </a-card>
+              </a-col>
+            </a-row>
+
+            <a-table
+              v-if="acceptDiff"
+              class="qa-table"
+              size="mini"
+              :pagination="false"
+              row-key="item"
+              :data="acceptDiff.checklist"
+              :columns="[
+                { title: '验收检查项', dataIndex: 'item' },
+                { title: '状态', slotName: 'pass', width: 100 },
+              ]"
+            >
+              <template #pass="{ record }">
+                <a-tag :color="record.pass ? 'green' : 'orangered'" size="small">
+                  {{ record.pass ? '通过' : '待完成' }}
+                </a-tag>
+              </template>
+            </a-table>
+
             <div v-if="job.step === 'confirm'" class="hint">
-              请确认预标注结果与业务样例一致，确认后进入人工精标。
+              请对照上方 Diff：确认预标注结果与业务样例一致后，进入人工精标。
             </div>
             <div v-else-if="job.step === 'annotate'" class="hint">
               请在「文本预标 / 视觉预标」页完成人工修正后，回到本向导继续。
               <div class="links">
-                <a-button  type="text" @click="router.push('/prelabel/text')">打开文本预标</a-button>
-                <a-button  type="text" @click="router.push('/prelabel/vision')">打开视觉预标</a-button>
+                <a-button type="text" @click="router.push('/prelabel/text')">打开文本预标</a-button>
+                <a-button type="text" @click="router.push('/prelabel/vision')">打开视觉预标</a-button>
               </div>
             </div>
             <div v-else-if="job.step === 'qa'" class="hint">
               <div class="label">质检意见</div>
               <a-textarea
                 v-model="qaNote"
-                
                 :rows="3"
                 placeholder="例如：实体类型已修正，关系抽取合格，允许验收"
               />
@@ -306,5 +378,11 @@ function stepStatus(key) {
 .footer {
   display: flex;
   justify-content: flex-end;
+}
+.diff-panels {
+  margin-bottom: 12px;
+}
+.qa-table {
+  margin-bottom: 12px;
 }
 </style>

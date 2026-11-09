@@ -8,6 +8,8 @@ import {
   VISION_IMAGES,
   ACCEPT_STEPS,
   createAcceptJobs,
+  createPrelabelJobs,
+  PRELABEL_MODELS,
   ENTITY_TYPES,
   RELATION_TYPES,
   CLASS_LABELS,
@@ -19,6 +21,9 @@ const state = {
     model: JSON.parse(JSON.stringify(d.model)),
     corrected: null,
     changeLog: [],
+    lastModelId: null,
+    lastModelVersion: null,
+    lastParams: null,
   })),
   visions: VISION_IMAGES.map((v) => ({
     ...v,
@@ -27,8 +32,14 @@ const state = {
     ocrCorrected: false,
     yoloCorrected: false,
     changeLog: [],
+    lastOcrModelId: null,
+    lastYoloModelId: null,
+    lastModelVersion: null,
+    lastParams: null,
   })),
   accepts: createAcceptJobs(),
+  jobs: createPrelabelJobs(),
+  jobSeq: createPrelabelJobs().length + 1,
 }
 
 function now() {
@@ -50,6 +61,7 @@ export function listMeta() {
     relationTypes: RELATION_TYPES,
     classLabels: CLASS_LABELS,
     acceptSteps: ACCEPT_STEPS,
+    models: PRELABEL_MODELS.map((m) => ({ ...m, defaultParams: { ...m.defaultParams } })),
   }
 }
 
@@ -91,24 +103,36 @@ export async function getTextDoc(docId) {
     corrected: d.corrected ? clone(d.corrected) : null,
     changeLog: [...d.changeLog],
     goldHint: d.goldHint,
+    lastModelId: d.lastModelId,
+    lastModelVersion: d.lastModelVersion,
+    lastParams: d.lastParams ? clone(d.lastParams) : null,
   }
 }
 
 /** 跑文本预标管线：分类 / NER / 关系 / 结构化 */
-export async function runTextPipeline(docId) {
+export async function runTextPipeline(docId, options = {}) {
   await businessDelay()
   const d = state.texts.find((x) => x.id === docId)
   if (!d) throw new Error(`文本样例不存在：${docId}`)
+  const model =
+    PRELABEL_MODELS.find((m) => m.id === options.modelId && m.type === 'text_pipeline') ||
+    PRELABEL_MODELS.find((m) => m.type === 'text_pipeline')
   d.status = 'prelabeled'
+  d.lastModelId = model?.id || null
+  d.lastModelVersion = model?.version || null
+  d.lastParams = options.params ? clone(options.params) : clone(model?.defaultParams || {})
   pushAudit({
     action: '运行文本预标管线',
-    detail: `${docId} · 分类/NER/关系/结构化`,
+    detail: `${docId} · ${model?.name || 'default'}@${model?.version || '-'} · 分类/NER/关系/结构化`,
   })
   return {
     classify: clone(d.model.classify),
     entities: clone(d.model.entities),
     relations: clone(d.model.relations),
     structured: clone(d.model.structured),
+    modelId: d.lastModelId,
+    modelVersion: d.lastModelVersion,
+    params: clone(d.lastParams),
   }
 }
 
@@ -155,28 +179,49 @@ export async function getVisionImage(imageId) {
     ocrCorrected: v.ocrCorrected,
     yoloCorrected: v.yoloCorrected,
     changeLog: [...v.changeLog],
+    lastOcrModelId: v.lastOcrModelId,
+    lastYoloModelId: v.lastYoloModelId,
+    lastModelVersion: v.lastModelVersion,
+    lastParams: v.lastParams ? clone(v.lastParams) : null,
   }
 }
 
-export async function runOcr(imageId) {
+export async function runOcr(imageId, options = {}) {
   await businessDelay()
   const v = state.visions.find((x) => x.id === imageId)
   if (!v) throw new Error(`图像样例不存在：${imageId}`)
-  // reset to model seed for demo re-run feel, then mark status
+  const model =
+    PRELABEL_MODELS.find((m) => m.id === options.modelId && m.type === 'ocr') ||
+    PRELABEL_MODELS.find((m) => m.type === 'ocr')
   v.ocr = clone(v.ocrModel)
   v.status = 'ocr_done'
-  pushAudit({ action: '运行 OCR 预标', detail: `${imageId} · ${v.ocr.length} 条` })
-  return clone(v.ocr)
+  v.lastOcrModelId = model?.id || null
+  v.lastModelVersion = model?.version || null
+  v.lastParams = options.params ? clone(options.params) : clone(model?.defaultParams || {})
+  pushAudit({
+    action: '运行 OCR 预标',
+    detail: `${imageId} · ${model?.name || 'OCR'}@${model?.version || '-'} · ${v.ocr.length} 条`,
+  })
+  return { items: clone(v.ocr), modelId: model?.id, modelVersion: model?.version, params: clone(v.lastParams) }
 }
 
-export async function runYolo(imageId) {
+export async function runYolo(imageId, options = {}) {
   await businessDelay()
   const v = state.visions.find((x) => x.id === imageId)
   if (!v) throw new Error(`图像样例不存在：${imageId}`)
+  const model =
+    PRELABEL_MODELS.find((m) => m.id === options.modelId && m.type === 'yolo') ||
+    PRELABEL_MODELS.find((m) => m.type === 'yolo')
   v.yolo = clone(v.yoloModel)
   v.status = 'yolo_done'
-  pushAudit({ action: '运行 YOLO 预标', detail: `${imageId} · ${v.yolo.length} 框` })
-  return clone(v.yolo)
+  v.lastYoloModelId = model?.id || null
+  v.lastModelVersion = model?.version || null
+  v.lastParams = options.params ? clone(options.params) : clone(model?.defaultParams || {})
+  pushAudit({
+    action: '运行 YOLO 预标',
+    detail: `${imageId} · ${model?.name || 'YOLO'}@${model?.version || '-'} · ${v.yolo.length} 框`,
+  })
+  return { items: clone(v.yolo), modelId: model?.id, modelVersion: model?.version, params: clone(v.lastParams) }
 }
 
 /**
@@ -313,4 +358,100 @@ export async function advanceAcceptStep(id, { qaNote } = {}) {
   return { ...j, stepDone: [...j.stepDone] }
 }
 
-export { TEXT_DOCS, VISION_IMAGES, ACCEPT_STEPS, ENTITY_TYPES, RELATION_TYPES, CLASS_LABELS }
+export async function listPrelabelJobs(query = {}) {
+  await businessDelay()
+  let rows = state.jobs.map((j) => clone(j))
+  if (query.status) rows = rows.filter((j) => j.status === query.status)
+  if (query.type) rows = rows.filter((j) => j.type === query.type)
+  if (query.keyword) {
+    const kw = String(query.keyword).trim()
+    rows = rows.filter((j) => j.id.includes(kw) || j.title.includes(kw))
+  }
+  return paginate(rows, query)
+}
+
+export async function getPrelabelJob(id) {
+  await businessDelay()
+  const j = state.jobs.find((x) => x.id === id)
+  if (!j) throw new Error(`预标任务不存在：${id}`)
+  return clone(j)
+}
+
+/**
+ * 创建批量预标任务（演示：立即进入 running，再可手动推进/重试）
+ */
+export async function createPrelabelJob(payload = {}) {
+  await businessDelay()
+  if (!payload.title?.trim()) throw new Error('请填写任务名称')
+  if (!payload.modelId) throw new Error('请选择模型')
+  if (!payload.sampleIds?.length) throw new Error('请至少选择一个样本')
+  const model = PRELABEL_MODELS.find((m) => m.id === payload.modelId)
+  if (!model) throw new Error(`模型不存在：${payload.modelId}`)
+  const id = `DL-PRE-2026-${String(state.jobSeq++).padStart(3, '0')}`
+  const job = {
+    id,
+    title: payload.title.trim(),
+    type: payload.type || model.type,
+    modelId: model.id,
+    modelVersion: model.version,
+    params: payload.params ? clone(payload.params) : clone(model.defaultParams),
+    sampleIds: [...payload.sampleIds],
+    status: 'running',
+    progressPct: 18,
+    successCount: 0,
+    failCount: 0,
+    retryCount: 0,
+    errorMessage: null,
+    createdAt: now(),
+    finishedAt: null,
+    diffStats: null,
+  }
+  state.jobs.unshift(job)
+  pushAudit({
+    action: '创建预标任务',
+    detail: `${id} · ${model.name}@${model.version} · ${job.sampleIds.length} 样本`,
+  })
+  return clone(job)
+}
+
+/** 演示推进进度；满进度则 success */
+export async function tickPrelabelJob(id) {
+  await businessDelay()
+  const j = state.jobs.find((x) => x.id === id)
+  if (!j) throw new Error(`预标任务不存在：${id}`)
+  if (j.status !== 'running') throw new Error('仅运行中任务可推进')
+  j.progressPct = Math.min(100, j.progressPct + 28)
+  if (j.progressPct >= 100) {
+    j.status = 'success'
+    j.progressPct = 100
+    j.successCount = j.sampleIds.length
+    j.failCount = 0
+    j.finishedAt = now()
+    j.diffStats = {
+      entityFixRate: 0.15,
+      relationFixRate: 0.1,
+      ocrFixRate: 0.08,
+      yoloFixRate: 0.11,
+    }
+    pushAudit({ action: '预标任务完成', detail: id })
+  }
+  return clone(j)
+}
+
+export async function retryPrelabelJob(id) {
+  await businessDelay()
+  const j = state.jobs.find((x) => x.id === id)
+  if (!j) throw new Error(`预标任务不存在：${id}`)
+  if (j.status !== 'failed' && j.status !== 'partial') {
+    throw new Error('仅失败/部分失败任务可重试')
+  }
+  j.retryCount += 1
+  j.status = 'running'
+  j.progressPct = 10
+  j.errorMessage = null
+  j.finishedAt = null
+  pushAudit({ action: '重试预标任务', detail: `${id} · 第 ${j.retryCount} 次` })
+  return clone(j)
+}
+
+export { TEXT_DOCS, VISION_IMAGES, ACCEPT_STEPS, PRELABEL_MODELS, ENTITY_TYPES, RELATION_TYPES, CLASS_LABELS }

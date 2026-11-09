@@ -71,6 +71,12 @@ const router = createRouter({
               component: () => import('@/views/prelabel/AcceptWizard.vue'),
               meta: { title: '验收向导' },
             },
+            {
+              path: 'jobs',
+              name: 'prelabel-jobs',
+              component: () => import('@/views/prelabel/PrelabelJobs.vue'),
+              meta: { title: '预标任务队列' },
+            },
           ],
         },
         {
@@ -84,6 +90,12 @@ const router = createRouter({
               name: 'vla-collect',
               component: () => import('@/views/vla/CollectConfig.vue'),
               meta: { title: '采集配置' },
+            },
+            {
+              path: 'devices',
+              name: 'vla-devices',
+              component: () => import('@/views/vla/DeviceLedger.vue'),
+              meta: { title: '设备台账' },
             },
             {
               path: 'timeline/:id?',
@@ -122,6 +134,12 @@ const router = createRouter({
               name: 'train-metrics',
               component: () => import('@/views/train/MetricsPanel.vue'),
               meta: { title: '指标报表' },
+            },
+            {
+              path: 'gpus',
+              name: 'train-gpus',
+              component: () => import('@/views/train/GpuMonitor.vue'),
+              meta: { title: '算力监控' },
             },
           ],
         },

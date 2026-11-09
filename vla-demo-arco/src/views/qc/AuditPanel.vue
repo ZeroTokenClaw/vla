@@ -234,6 +234,20 @@ async function resumeAnnotate() {
               <div v-if="h.note" class="note">{{ h.note }}</div>
             </a-timeline-item>
           </a-timeline>
+
+          <a-divider />
+          <h4>标注结果快照（可审核对照）</h4>
+          <pre class="json-peek">{{ JSON.stringify(task.labelsSnapshot || [], null, 2) }}</pre>
+
+          <div v-if="task.reworkTrail?.length" class="rework">
+            <h4>返修轨迹</h4>
+            <a-timeline>
+              <a-timeline-item v-for="(r, i) in task.reworkTrail" :key="i" :label="r.at">
+                原因码 {{ r.code }} · {{ r.note || '无说明' }}
+                <span class="muted"> · by {{ r.by }}</span>
+              </a-timeline-item>
+            </a-timeline>
+          </div>
         </a-card>
       </a-col>
 
@@ -361,5 +375,21 @@ async function resumeAnnotate() {
   margin-top: 10px;
   color: #d48806;
   font-size: 12px;
+}
+.json-peek {
+  max-height: 220px;
+  overflow: auto;
+  font-size: 11px;
+  background: #1d2129;
+  color: #c9cdd4;
+  padding: 8px;
+  border-radius: 6px;
+}
+.rework {
+  margin-top: 8px;
+}
+h4 {
+  margin: 12px 0 8px;
+  font-size: 14px;
 }
 </style>

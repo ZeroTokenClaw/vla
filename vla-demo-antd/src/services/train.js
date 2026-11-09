@@ -59,6 +59,31 @@ export function listMeta() {
   }
 }
 
+export async function refreshGpuMetrics() {
+  await businessDelay()
+  for (const g of state.gpus) {
+    if (g.free) {
+      g.utilPct = Math.max(0, Math.min(25, Math.round((g.utilPct || 5) + (Math.random() * 6 - 3))))
+      g.memUsedGb = Number(
+        Math.max(0.5, Math.min(g.memoryGb * 0.2, (g.memUsedGb || 1) + (Math.random() - 0.5))).toFixed(1),
+      )
+      g.temperature = Math.max(32, Math.min(50, Math.round((g.temperature || 36) + (Math.random() * 4 - 2))))
+      g.powerW = Math.max(25, Math.min(120, Math.round((g.powerW || 40) + (Math.random() * 10 - 5))))
+    } else {
+      g.utilPct = Math.max(55, Math.min(98, Math.round((g.utilPct || 70) + (Math.random() * 8 - 4))))
+      g.memUsedGb = Number(
+        Math.max(
+          g.memoryGb * 0.5,
+          Math.min(g.memoryGb * 0.95, (g.memUsedGb || g.memoryGb * 0.6) + (Math.random() - 0.5) * 1.5),
+        ).toFixed(1),
+      )
+      g.temperature = Math.max(60, Math.min(84, Math.round((g.temperature || 70) + (Math.random() * 4 - 2))))
+      g.powerW = Math.max(180, Math.min(300, Math.round((g.powerW || 200) + (Math.random() * 20 - 10))))
+    }
+  }
+  return state.gpus.map((g) => ({ ...g }))
+}
+
 export async function listExperiments(query = {}) {
   await businessDelay()
   const { page, pageSize, status, algorithm, keyword } = query

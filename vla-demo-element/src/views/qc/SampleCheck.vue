@@ -5,6 +5,8 @@ import {
   listSampleRules,
   updateSampleRule,
   runSampleCheck,
+  runDesignatedSampleCheck,
+  getQualityDashboard,
   listSamplePool,
   passSample,
   rejectSample,
@@ -24,6 +26,8 @@ const pool = ref([])
 const meta = reactive({ modalities: [] })
 const lastRun = ref(null)
 const rejectMap = reactive({})
+const designatedIds = ref('SPL-DL-1001, SPL-DL-2101')
+const dashboard = ref(null)
 
 const canConfig = computed(() => auth.role === 'admin' || auth.role === 'reviewer')
 
@@ -44,6 +48,7 @@ async function load() {
     rules.value = await listSampleRules()
     const poolRes = await listSamplePool({ page: 1, pageSize: 500 })
     pool.value = poolRes.items
+    dashboard.value = await getQualityDashboard()
   } finally {
     loading.value = false
   }
@@ -60,6 +65,7 @@ async function saveRule(rule) {
     ratio: rule.ratio,
     enabled: rule.enabled,
     minSamples: rule.minSamples,
+    qualityThreshold: rule.qualityThreshold,
     modalities: [...rule.modalities],
   })
   ElMessage.success('规则已保存')
@@ -72,6 +78,24 @@ async function runRule(ruleId) {
     const res = await runSampleCheck(ruleId)
     lastRun.value = res.run
     ElMessage.success(`随机抽检完成，抽中 ${res.run.count} 条`)
+    await load()
+  } catch (e) {
+    ElMessage.error(e.message)
+  } finally {
+    running.value = false
+  }
+}
+
+async function runDesignated() {
+  running.value = true
+  try {
+    const ids = designatedIds.value
+      .split(/[,，\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const res = await runDesignatedSampleCheck(ids)
+    lastRun.value = res.run
+    ElMessage.success(`指定抽检完成，抽中 ${res.run.count} 条`)
     await load()
   } catch (e) {
     ElMessage.error(e.message)
@@ -146,13 +170,45 @@ function statusType(s) {
     />
 
     <el-row :gutter="12" class="stats">
-      <el-col :span="6"><el-statistic title="待/抽检中" :value="stats.pending" /></el-col>
-      <el-col :span="6"><el-statistic title="合格" :value="stats.pass" /></el-col>
-      <el-col :span="6"><el-statistic title="不合格" :value="stats.fail" /></el-col>
-      <el-col :span="6"><el-statistic title="已回流" :value="stats.refluxed" /></el-col>
+      <el-col :span="4"><el-statistic title="待/抽检中" :value="stats.pending" /></el-col>
+      <el-col :span="4"><el-statistic title="合格" :value="stats.pass" /></el-col>
+      <el-col :span="4"><el-statistic title="不合格" :value="stats.fail" /></el-col>
+      <el-col :span="4"><el-statistic title="已回流" :value="stats.refluxed" /></el-col>
+      <el-col :span="4">
+        <el-statistic
+          title="合格率"
+          :value="Math.round((dashboard?.totals?.passRate || 0) * 100)"
+          suffix="%"
+        />
+      </el-col>
+      <el-col :span="4">
+        <el-statistic
+          title="驳回率"
+          :value="Math.round((dashboard?.totals?.rejectRate || 0) * 100)"
+          suffix="%"
+        />
+      </el-col>
     </el-row>
 
     <ProgressMock :running="running" label="抽检 / 回流处理中" :duration="1100" />
+
+    <el-card v-if="dashboard" shadow="never" class="mb">
+      <template #header>人员质量统计</template>
+      <el-table :data="dashboard.persons" size="small" stripe>
+        <el-table-column prop="name" label="人员" width="100" />
+        <el-table-column prop="role" label="角色" width="100" />
+        <el-table-column prop="done" label="完成量" width="90" />
+        <el-table-column label="合格率" width="100">
+          <template #default="{ row }">{{ Math.round(row.passRate * 100) }}%</template>
+        </el-table-column>
+        <el-table-column label="驳回率" width="100">
+          <template #default="{ row }">{{ Math.round(row.rejectRate * 100) }}%</template>
+        </el-table-column>
+        <el-table-column label="返修率" width="100">
+          <template #default="{ row }">{{ Math.round(row.reworkRate * 100) }}%</template>
+        </el-table-column>
+      </el-table>
+    </el-card>
 
     <el-card shadow="never" class="mb">
       <template #header>
@@ -163,8 +219,8 @@ function statusType(s) {
       </template>
       <el-table :data="rules" stripe>
         <el-table-column prop="id" label="规则号" width="120" />
-        <el-table-column prop="name" label="名称" min-width="180" />
-        <el-table-column label="抽检比例" width="160">
+        <el-table-column prop="name" label="名称" min-width="160" />
+        <el-table-column label="抽检比例" width="150">
           <template #default="{ row }">
             <el-slider
               v-model="row.ratio"
@@ -176,7 +232,20 @@ function statusType(s) {
             />
           </template>
         </el-table-column>
-        <el-table-column label="覆盖模态" min-width="200">
+        <el-table-column label="质量阈值" width="120">
+          <template #default="{ row }">
+            <el-input-number
+              v-model="row.qualityThreshold"
+              :min="0.5"
+              :max="1"
+              :step="0.01"
+              :disabled="!canConfig"
+              size="small"
+              controls-position="right"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="覆盖模态" min-width="180">
           <template #default="{ row }">
             <el-select
               v-model="row.modalities"
@@ -208,6 +277,15 @@ function statusType(s) {
           </template>
         </el-table-column>
       </el-table>
+      <div class="designated">
+        <span class="lab">指定样本抽检</span>
+        <el-input
+          v-model="designatedIds"
+          placeholder="样本号，逗号或空格分隔"
+          style="flex: 1"
+        />
+        <el-button type="primary" plain :disabled="!canConfig" @click="runDesignated">执行指定抽检</el-button>
+      </div>
       <p v-if="lastRun" class="run-tip">
         最近抽检：{{ lastRun.ruleName }} · {{ lastRun.at }} · 抽中 {{ lastRun.count }} 条（{{
           lastRun.pickedIds?.join(', ')
@@ -294,6 +372,17 @@ function statusType(s) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.designated {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+.lab {
+  font-size: 13px;
+  color: #374151;
+  white-space: nowrap;
 }
 .run-tip {
   margin: 12px 0 0;

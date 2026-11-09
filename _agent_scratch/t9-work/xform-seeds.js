@@ -1,0 +1,53 @@
+﻿const fs = require('fs')
+const path = require('path')
+const src = 'E:/omp/vla/vla-demo-naive/src/mock/seed'
+const dst = 'E:/omp/vla/vla-demo-arco/src/mock/seed'
+
+function xform(s) {
+  return s
+    .replace(/0x11A10E01/g, '0x5C010001')
+    .replace(/LingMou/g, 'StarCompute')
+    .replace(/u-lm-/g, 'u-sc-')
+    .replace(/LM-TXT-/g, 'SC-TXT-')
+    .replace(/LM-IMG-/g, 'SC-IMG-')
+    .replace(/LM-ACC-/g, 'SC-ACC-')
+    .replace(/LM-VLA-/g, 'SC-VLA-')
+    .replace(/LM-EXP-/g, 'SC-EXP-')
+    .replace(/LM-ORD-/g, 'SC-ORD-')
+    .replace(/SPL-LM-/g, 'SPL-SC-')
+    .replace(/CAT-LM-/g, 'CAT-SC-')
+    .replace(/`LM-2026-/g, '`SC-2026-')
+    .replace(/LM-2026-/g, 'SC-2026-')
+    .replace(/URGENCIES/g, 'SLA_CLASSES')
+    .replace(/const LANES =/g, 'const TENANTS =')
+    .replace(/rng\.pick\(LANES\)/g, 'rng.pick(TENANTS)')
+    .replace(/\['urgent', 'normal', 'backlog'\]/g, "['S', 'A', 'B']")
+    .replace(/\['lane-alpha', 'lane-beta', 'lane-gamma'\]/g, "['tn-sc-01', 'tn-sc-02', 'tn-sc-03']")
+    .replace(/\burgency\b/g, 'slaClass')
+    .replace(/\blane\b/g, 'tenantCode')
+    .replace(/bounceLog/g, 'reworkTrail')
+    .replace(/stove_top/g, 'pack_station')
+    .replace(/clean_bench/g, 'chem_hood')
+    .replace(/tote_wall/g, 'sku_cage')
+    .replace(/dual_monitor/g, 'sit_stand')
+    .replace(/\bsignal\b/g, 'stream')
+    .replace(/\bdof\b/g, 'joints')
+    .replace(/\bclaw\b/g, 'eeOpen')
+    .replace(/makeSignal/g, 'makeStream')
+    .replace(/\bcorpora\b/g, 'repos')
+    .replace(/\bpart:/g, 'partition:')
+    .replace(/\btag:/g, 'pin:')
+    .replace(/\bsnapshots\b/g, 'weights')
+    .replace(/\bscoreSheet\b/g, 'evalSheet')
+    .replace(/\bmixMatrix\b/g, 'errorGrid')
+    .replace(/\bconsoleLines\b/g, 'trainLog')
+    .replace(/longConsoleLines/g, 'longTrainLog')
+}
+
+for (const f of ['qc.js', 'prelabel.js', 'vla.js', 'train.js', 'media-manifest.js']) {
+  let s = fs.readFileSync(path.join(src, f), 'utf8')
+  s = xform(s)
+  fs.writeFileSync(path.join(dst, f), s)
+  console.log('seed', f, s.length)
+}
+console.log('done basic xform')

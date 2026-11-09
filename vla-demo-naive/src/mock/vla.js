@@ -59,6 +59,21 @@ const VLA_HAND = [
     durationSec: 12,
     status: 'annotating',
     createdAt: '2026-11-03 10:18:00',
+    deviceIds: ['DEV-LM-CAM-01', 'DEV-LM-CAM-02', 'DEV-LM-ARM-01'],
+    targetCount: 30,
+    collectedCount: 12,
+    dataTypes: ['video', 'action', 'sync'],
+    qualityRequirement: '无遮挡>80%时长；指令-动作一致分≥0.75；关键帧清晰',
+    signal: {
+      dof: Array.from({ length: 24 }, (_, i) =>
+        Array.from({ length: 7 }, (__, j) => Number((Math.sin(i / 5 + j * 0.4) * 0.35 + 0.1 * j).toFixed(4))),
+      ),
+      claw: Array.from({ length: 24 }, (_, i) =>
+        Number((i < 6 ? 0.12 : i < 10 ? 0.9 : i < 18 ? 0.88 : 0.15).toFixed(3)),
+      ),
+      t: Array.from({ length: 24 }, (_, i) => Number((i / 10).toFixed(2))),
+      hz: 10,
+    },
     actions: [
       {
         id: 'act-1',
@@ -288,6 +303,87 @@ function buildVlaTasks() {
 }
 
 export const VLA_TASKS = buildVlaTasks()
+
+export const COLLECT_DEVICES = [
+  {
+    id: 'DEV-LM-CAM-01',
+    name: '顶部 RGB 相机-A',
+    type: 'rgb_camera',
+    typeLabel: 'RGB 相机',
+    status: 'online',
+    location: '仓拣工位-1',
+    sn: 'SN-CAM-8821',
+    fps: 30,
+    resolution: '1920x1080',
+    lastHeartbeat: '2026-11-09 08:52:11',
+    boundTaskIds: ['LM-VLA-2026-001'],
+  },
+  {
+    id: 'DEV-LM-CAM-02',
+    name: '手腕相机-B',
+    type: 'wrist_camera',
+    typeLabel: '手腕相机',
+    status: 'online',
+    location: '仓拣工位-1',
+    sn: 'SN-WRIST-4410',
+    fps: 30,
+    resolution: '1280x720',
+    lastHeartbeat: '2026-11-09 08:52:09',
+    boundTaskIds: ['LM-VLA-2026-001'],
+  },
+  {
+    id: 'DEV-LM-ARM-01',
+    name: '七轴机械臂-Unit-01',
+    type: 'manipulator',
+    typeLabel: '机械臂',
+    status: 'busy',
+    location: '仓拣工位-1',
+    sn: 'SN-ARM-7DOF-01',
+    fps: null,
+    resolution: null,
+    lastHeartbeat: '2026-11-09 08:51:58',
+    boundTaskIds: ['LM-VLA-2026-001', 'LM-VLA-2026-002'],
+  },
+  {
+    id: 'DEV-LM-MIC-01',
+    name: '指令麦克风',
+    type: 'microphone',
+    typeLabel: '麦克风',
+    status: 'online',
+    location: '实验台-2',
+    sn: 'SN-MIC-2201',
+    fps: null,
+    resolution: null,
+    lastHeartbeat: '2026-11-09 08:50:33',
+    boundTaskIds: [],
+  },
+  {
+    id: 'DEV-LM-IPC-01',
+    name: '采集工控机-Edge01',
+    type: 'edge_pc',
+    typeLabel: '工控机',
+    status: 'offline',
+    location: '办公桌面工位',
+    sn: 'SN-IPC-9901',
+    fps: null,
+    resolution: null,
+    lastHeartbeat: '2026-11-08 19:12:00',
+    boundTaskIds: [],
+  },
+  {
+    id: 'DEV-LM-DEPTH-01',
+    name: '深度相机 RealSense',
+    type: 'depth_camera',
+    typeLabel: '深度相机',
+    status: 'online',
+    location: '实验台-2',
+    sn: 'SN-D435-1102',
+    fps: 15,
+    resolution: '848x480',
+    lastHeartbeat: '2026-11-09 08:52:01',
+    boundTaskIds: ['LM-VLA-2026-003'],
+  },
+]
 
 export function nextVlaId(seq) {
   const n = String(seq).padStart(3, '0')

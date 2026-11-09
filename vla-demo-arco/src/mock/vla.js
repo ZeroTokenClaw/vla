@@ -293,3 +293,17 @@ export function nextVlaId(seq) {
   const n = String(seq).padStart(3, '0')
   return `SC-VLA-2026-${n}`
 }
+
+export const COLLECT_DEVICES = [
+  { id: 'DEV-SC-CAM-01', name: '顶部 RGB 相机-A', type: 'rgb_camera', typeLabel: 'RGB 相机', status: 'online', location: '仓拣工位-1', sn: 'SN-CAM-8821', fps: 30, resolution: '1920x1080', lastHeartbeat: '2026-11-09 08:52:11', boundTaskIds: ['SC-VLA-2026-001'] },
+  { id: 'DEV-SC-ARM-01', name: '七轴机械臂-Unit-01', type: 'manipulator', typeLabel: '机械臂', status: 'busy', location: '仓拣工位-1', sn: 'SN-ARM-7DOF-01', fps: null, resolution: null, lastHeartbeat: '2026-11-09 08:51:58', boundTaskIds: ['SC-VLA-2026-001'] },
+  { id: 'DEV-SC-MIC-01', name: '指令麦克风', type: 'microphone', typeLabel: '麦克风', status: 'online', location: '实验台-2', sn: 'SN-MIC-2201', fps: null, resolution: null, lastHeartbeat: '2026-11-09 08:50:33', boundTaskIds: [] },
+  { id: 'DEV-SC-DEPTH-01', name: '深度相机 RealSense', type: 'depth_camera', typeLabel: '深度相机', status: 'online', location: '实验台-2', sn: 'SN-D435-1102', fps: 15, resolution: '848x480', lastHeartbeat: '2026-11-09 08:52:01', boundTaskIds: [] },
+  { id: 'DEV-SC-IPC-01', name: '采集工控机-Edge01', type: 'edge_pc', typeLabel: '工控机', status: 'offline', location: '办公桌面工位', sn: 'SN-IPC-9901', fps: null, resolution: null, lastHeartbeat: '2026-11-08 19:12:00', boundTaskIds: [] },
+]
+
+export const DETECTOR_META = {
+  version: 'vla-qc-heuristic/1.4.2-demo',
+  engine: 'OpenCV + 规则引擎（演示）',
+  updatedAt: '2026-11-05',
+}

@@ -3,11 +3,11 @@ import { seedQcTasks, seedSamplePool } from './seed/qc'
 /** DataLink QC mock: multimodal tickets, workflow, sample-check. */
 
 export const MODALITIES = [
-  { value: 'text_ner', label: '文本实体抽取', short: '文本NER' },
-  { value: 'seg', label: '图像语义分割', short: '图像分割' },
-  { value: 'audio_slice', label: '语音切片', short: '语音切片' },
-  { value: 'video_det', label: '视频目标检测', short: '视频检测' },
-  { value: 'point_seg', label: '点云分割', short: '点云分割' },
+  { value: 'text_ner', label: '物流工单 NER', short: '仓储客服 · 实体', hint: 'DL 订单 / 地址 / 电话' },
+  { value: 'seg', label: '货架箱体分割', short: '仓内 RGB · Mask', hint: '纸箱 / 托盘 / 货架' },
+  { value: 'audio_slice', label: '拣货对讲切片', short: '仓内语音 · 切片', hint: '唤醒 / 库位指令' },
+  { value: 'video_det', label: '输送线目标跟踪', short: '分拣视频 · Track', hint: '料箱 / 夹爪 / 皮带' },
+  { value: 'point_seg', label: '库区 LiDAR 分割', short: '点云 · 库位', hint: '托盘面 / 叉车' },
 ]
 
 export const STATUS_FLOW = [
@@ -46,75 +46,131 @@ export const PRIORITIES = [
   { value: 'low', label: '低' },
 ]
 
-/** Sample media + annotation payloads per modality (desensitized). */
+/** Sample media + annotation payloads — DataLink 仓储物流域 */
 export const SAMPLE_RESOURCES = {
   text_ner: {
     id: 'res-text-01',
-    title: '客服工单原文-脱敏',
+    title: '华东仓客服工单 · 脱敏',
+    domain: 'warehouse-cs',
     text:
-      '用户张某于2026年10月28日致电反映：订单 DL-ORD-8821 物流延误，希望改派至上海市浦东新区张江路88号，联系电话138****6521。客服已登记并承诺48小时内回电。',
+      '货主王敏于2026年11月03日投诉：运单 DL-WH-99021 在苏州吴中仓滞留，要求改派昆山市陆家镇前进路 66 号，联系电话 139****2208。仓管已确认库位 A-12-03。',
     entities: [
-      { id: 'e1', text: '张某', type: 'PERSON', start: 2, end: 4 },
-      { id: 'e2', text: '2026年10月28日', type: 'DATE', start: 5, end: 16 },
-      { id: 'e3', text: 'DL-ORD-8821', type: 'ORDER_ID', start: 24, end: 35 },
-      { id: 'e4', text: '上海市浦东新区张江路88号', type: 'ADDRESS', start: 44, end: 58 },
-      { id: 'e5', text: '138****6521', type: 'PHONE', start: 63, end: 74 },
+      { id: 'e1', text: '王敏', type: 'PERSON', start: 2, end: 4 },
+      { id: 'e2', text: '2026年11月03日', type: 'DATE', start: 5, end: 16 },
+      { id: 'e3', text: 'DL-WH-99021', type: 'WAYBILL', start: 22, end: 33 },
+      { id: 'e4', text: '苏州吴中仓', type: 'WAREHOUSE', start: 35, end: 40 },
+      { id: 'e5', text: '昆山市陆家镇前进路 66 号', type: 'ADDRESS', start: 47, end: 61 },
+      { id: 'e6', text: '139****2208', type: 'PHONE', start: 67, end: 78 },
+      { id: 'e7', text: 'A-12-03', type: 'BIN_LOC', start: 87, end: 94 },
     ],
-    labelSet: ['PERSON', 'DATE', 'ORDER_ID', 'ADDRESS', 'PHONE', 'ORG'],
+    labelSet: ['PERSON', 'DATE', 'WAYBILL', 'WAREHOUSE', 'ADDRESS', 'PHONE', 'BIN_LOC'],
   },
   seg: {
     id: 'res-img-01',
-    title: '桌面抓取场景-语义分割',
-    imageUrl: '/samples/images/desk_seg.jpg',
+    title: '立体货架箱体分割 · B3 巷道',
+    domain: 'warehouse-rgb',
+    imageUrl: '/samples/images/scene_02.jpg',
     masks: [
-      { id: 'm1', label: 'cup', color: '#1677ff', area: 0.12, conf: 0.93 },
-      { id: 'm2', label: 'plate', color: '#52c41a', area: 0.18, conf: 0.91 },
-      { id: 'm3', label: 'hand', color: '#fa8c16', area: 0.09, conf: 0.88 },
-      { id: 'm4', label: 'table', color: '#722ed1', area: 0.41, conf: 0.96 },
+      {
+        id: 'm1',
+        label: 'carton',
+        color: '#f59e0b',
+        area: 0.14,
+        conf: 0.92,
+        polygon: [
+          [0.18, 0.22],
+          [0.38, 0.2],
+          [0.4, 0.48],
+          [0.16, 0.5],
+        ],
+      },
+      {
+        id: 'm2',
+        label: 'pallet',
+        color: '#0ea5e9',
+        area: 0.2,
+        conf: 0.9,
+        polygon: [
+          [0.12, 0.58],
+          [0.62, 0.55],
+          [0.64, 0.82],
+          [0.1, 0.84],
+        ],
+      },
+      {
+        id: 'm3',
+        label: 'shelf',
+        color: '#8b5cf6',
+        area: 0.28,
+        conf: 0.88,
+        polygon: [
+          [0.55, 0.08],
+          [0.92, 0.1],
+          [0.94, 0.72],
+          [0.52, 0.7],
+        ],
+      },
+      {
+        id: 'm4',
+        label: 'aisle_floor',
+        color: '#64748b',
+        area: 0.22,
+        conf: 0.95,
+        polygon: [
+          [0.05, 0.72],
+          [0.5, 0.7],
+          [0.55, 0.96],
+          [0.02, 0.98],
+        ],
+      },
     ],
-    labelSet: ['cup', 'plate', 'hand', 'table', 'background', 'tool'],
+    labelSet: ['carton', 'pallet', 'shelf', 'aisle_floor', 'label_tag', 'other'],
   },
   audio_slice: {
     id: 'res-audio-01',
-    title: '指令语音-切片样例',
-    audioUrl: '/samples/audio/instruction.wav',
-    waveformUrl: '/samples/audio/instruction_wave.png',
-    durationSec: 4.7,
+    title: '拣货对讲 · 库位播报',
+    domain: 'warehouse-radio',
+    audioUrl: '/samples/audio/clip_01.wav',
+    waveformUrl: '/samples/audio/clip_01_wave.png',
+    durationSec: 1.1,
     slices: [
-      { id: 's1', start: 0.2, end: 1.0, label: '唤醒词', text: '你好数联' },
-      { id: 's2', start: 1.1, end: 2.6, label: '任务指令', text: '请把红色杯子放到托盘上' },
-      { id: 's3', start: 2.7, end: 3.4, label: '确认', text: '是的，红色那个' },
-      { id: 's4', start: 3.6, end: 4.5, label: '结束语', text: '完成后来告诉我' },
+      { id: 's1', start: 0.05, end: 0.28, label: '呼号', text: '拣货员 07 呼叫' },
+      { id: 's2', start: 0.3, end: 0.72, label: '库位指令', text: '前往 A 区 十二巷 三层' },
+      { id: 's3', start: 0.75, end: 1.0, label: '确认', text: '收到，正在移动' },
     ],
-    labelSet: ['唤醒词', '任务指令', '确认', '结束语', '噪声', '其他'],
+    labelSet: ['呼号', '库位指令', '确认', '噪声', '其他'],
   },
   video_det: {
     id: 'res-video-01',
-    title: '料箱分拣-目标检测',
-    posterUrl: '/samples/video/bin_pick_poster.jpg',
-    videoUrl: '/samples/video/bin_pick.mp4',
-    fps: 30,
-    frames: 180,
+    title: '输送线料箱跟踪 · Line-C',
+    domain: 'sortation-video',
+    posterUrl: '/samples/video/ep_02_poster.jpg',
+    videoUrl: '/samples/video/ep_02.mp4',
+    fps: 25,
+    frames: 90,
     detections: [
-      { id: 'd1', frame: 12, label: 'box_A', x: 0.12, y: 0.2, w: 0.18, h: 0.22, conf: 0.91 },
-      { id: 'd2', frame: 45, label: 'gripper', x: 0.4, y: 0.35, w: 0.15, h: 0.2, conf: 0.87 },
-      { id: 'd3', frame: 90, label: 'box_B', x: 0.55, y: 0.28, w: 0.2, h: 0.25, conf: 0.9 },
-      { id: 'd4', frame: 140, label: 'conveyor', x: 0.05, y: 0.65, w: 0.9, h: 0.25, conf: 0.95 },
+      { id: 'd1', frame: 8, label: 'tote', x: 0.1, y: 0.25, w: 0.2, h: 0.22, conf: 0.93, trackId: 'trk-tote-1' },
+      { id: 'd2', frame: 22, label: 'gripper', x: 0.42, y: 0.18, w: 0.14, h: 0.2, conf: 0.88, trackId: 'trk-grip' },
+      { id: 'd3', frame: 40, label: 'tote', x: 0.35, y: 0.3, w: 0.18, h: 0.2, conf: 0.91, trackId: 'trk-tote-1' },
+      { id: 'd4', frame: 55, label: 'belt', x: 0.02, y: 0.68, w: 0.96, h: 0.22, conf: 0.97, trackId: 'trk-belt' },
+      { id: 'd5', frame: 70, label: 'tote', x: 0.58, y: 0.32, w: 0.17, h: 0.19, conf: 0.89, trackId: 'trk-tote-2' },
     ],
-    labelSet: ['box_A', 'box_B', 'gripper', 'conveyor', 'person', 'other'],
+    labelSet: ['tote', 'gripper', 'belt', 'scanner', 'person', 'other'],
   },
   point_seg: {
     id: 'res-pc-01',
-    title: '桌面点云分割预览',
-    previewUrl: '/samples/pointcloud/desk_pc.png',
-    points: 128460,
+    title: '库区 LiDAR · B3 巷道俯视',
+    domain: 'warehouse-lidar',
+    previewUrl: '/samples/pointcloud/warehouse_lidar.svg',
+    points: 186420,
     segments: [
-      { id: 'p1', label: 'table_plane', points: 62400, color: '#13c2c2' },
-      { id: 'p2', label: 'object_cup', points: 8420, color: '#1677ff' },
-      { id: 'p3', label: 'object_bottle', points: 12100, color: '#eb2f96' },
-      { id: 'p4', label: 'noise', points: 3180, color: '#8c8c8c' },
+      { id: 'p1', label: 'pallet_plane', points: 72000, color: '#38bdf8' },
+      { id: 'p2', label: 'carton_A', points: 18400, color: '#fbbf24' },
+      { id: 'p3', label: 'carton_B', points: 20100, color: '#34d399' },
+      { id: 'p4', label: 'forklift', points: 26800, color: '#fb7185' },
+      { id: 'p5', label: 'noise', points: 4200, color: '#94a3b8' },
     ],
-    labelSet: ['table_plane', 'object_cup', 'object_bottle', 'robot_arm', 'noise'],
+    labelSet: ['pallet_plane', 'carton_A', 'carton_B', 'forklift', 'rack', 'noise'],
   },
 }
 
@@ -349,6 +405,7 @@ export const SAMPLE_RULES = [
     ratio: 0.15,
     modalities: ['text_ner', 'audio_slice'],
     minSamples: 20,
+    qualityThreshold: 0.92,
     enabled: true,
     description: '对高优先级文本与语音工单按 15% 比例随机抽检，覆盖漏标与规范违反项。',
   },
@@ -358,9 +415,17 @@ export const SAMPLE_RULES = [
     ratio: 0.1,
     modalities: ['seg', 'video_det', 'point_seg'],
     minSamples: 10,
+    qualityThreshold: 0.9,
     enabled: true,
     description: '图像分割、视频检测、点云分割按 10% 抽检，重点核查边界与类别一致性。',
   },
+]
+
+/** 人员质量统计（演示伪造聚合） */
+export const QUALITY_PERSON_STATS = [
+  { userId: 'u-dl-annotator', name: '陈思远', role: 'annotator', done: 186, passRate: 0.94, rejectRate: 0.06, reworkRate: 0.08 },
+  { userId: 'u-dl-annotator-2', name: '周可', role: 'annotator', done: 142, passRate: 0.91, rejectRate: 0.09, reworkRate: 0.11 },
+  { userId: 'u-dl-reviewer', name: '林晓萱', role: 'reviewer', done: 98, passRate: 0.97, rejectRate: 0.03, reworkRate: 0.04 },
 ]
 
 export const SPEC_SECTIONS = [
@@ -398,6 +463,16 @@ export const SPEC_SECTIONS = [
     id: 'spec-7',
     title: '7. 抽检与回流',
     body: '抽检不合格须填写驳回原因；返修后重新进入初审。合格样本写入回流库，供训练集引用。',
+  },
+  {
+    id: 'spec-8',
+    title: '8. 标签体系（Taxonomy）',
+    body: '文本：PERSON/DATE/ORDER_ID/ADDRESS/PHONE/ORG。视觉：box_A/box_B/gripper/conveyor/person。语音：唤醒词/任务指令/确认/结束语/噪声。点云：table_plane/object_*/robot_arm/noise。VLA：REACH/GRASP/LIFT/MOVE/PLACE/RETREAT。禁止自由造词，跨模态同义词须登记映射表。',
+  },
+  {
+    id: 'spec-9',
+    title: '9. 视频轨迹与多边形',
+    body: '同一物理目标跨帧复用 trackId；不规则目标可用 polygon，并保留外包 bbox。接触/释放关键帧必标。',
   },
 ]
 

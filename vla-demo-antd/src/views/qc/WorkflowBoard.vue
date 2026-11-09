@@ -47,6 +47,14 @@ const rejectTask = ref(null)
 const rejectReason = ref('')
 const rejectNote = ref('')
 
+const detailVisible = ref(false)
+const detailTask = ref(null)
+
+function openDetail(t) {
+  detailTask.value = t
+  detailVisible.value = true
+}
+
 async function load() {
   loading.value = true
   try {
@@ -238,8 +246,9 @@ function mapTagColor(t) {
           </div>
           <div class="collab">协作 {{ t.collaborators?.length || 0 }} 人 · 批注 {{ t.comments?.length || 0 }}</div>
           <div class="ops">
-            <a-button  type="link" size="small" @click="openComment(t)">批注</a-button>
-            <a-button  type="link" size="small" @click="goAudit(t.id)">详情</a-button>
+            <a-button type="link" size="small" @click="openDetail(t)">面板</a-button>
+            <a-button type="link" size="small" @click="openComment(t)">批注</a-button>
+            <a-button type="link" size="small" @click="goAudit(t.id)">审核</a-button>
             <a-button
               v-if="t.status === 'created' || t.status === 'assigned' || t.status === 'rejected'"
               
@@ -311,6 +320,45 @@ function mapTagColor(t) {
         <a-button danger :loading="busy" @click="confirmReject">确认驳回</a-button>
       </template>
     </a-modal>
+
+    <a-drawer v-model:open="detailVisible" width="480" :title="detailTask ? `工单 ${detailTask.id}` : '工单详情'">
+      <template v-if="detailTask">
+        <a-descriptions :column="1" size="small" bordered>
+          <a-descriptions-item label="标题">{{ detailTask.title }}</a-descriptions-item>
+          <a-descriptions-item label="状态">{{ getStatusMeta(detailTask.status)?.label || detailTask.status }}</a-descriptions-item>
+          <a-descriptions-item label="模态">{{ getModalityMeta(detailTask.modality)?.label || detailTask.modality }}</a-descriptions-item>
+          <a-descriptions-item label="执行人">{{ userName(detailTask.assigneeId) }}</a-descriptions-item>
+          <a-descriptions-item label="优先级">{{ detailTask.priority || 'P1' }}</a-descriptions-item>
+          <a-descriptions-item label="标签数">{{ (detailTask.labelsSnapshot || []).length }}</a-descriptions-item>
+          <a-descriptions-item label="协作人">{{ (detailTask.collaborators || []).map(userName).join('、') || '—' }}</a-descriptions-item>
+          <a-descriptions-item label="更新">{{ detailTask.updatedAt || detailTask.createdAt || '—' }}</a-descriptions-item>
+        </a-descriptions>
+
+        <h4 style="margin: 14px 0 8px">批注时间线</h4>
+        <a-timeline v-if="(detailTask.comments || []).length">
+          <a-timeline-item v-for="(c, i) in detailTask.comments" :key="i">
+            <div><strong>{{ c.author || c.userName || '协作者' }}</strong> · {{ c.at || c.createdAt || '' }}</div>
+            <div style="color: #64748b">{{ c.body || c.content || c.text }}</div>
+          </a-timeline-item>
+        </a-timeline>
+        <a-empty v-else description="暂无批注" />
+
+        <h4 style="margin: 14px 0 8px">状态流转痕迹</h4>
+        <a-timeline>
+          <a-timeline-item v-for="(h, i) in detailTask.history || detailTask.transitions || []" :key="i" color="blue">
+            {{ h.at || h.createdAt || '' }} · {{ h.from || h.fromStatus || '—' }} → {{ h.to || h.toStatus || h.status || '—' }}
+            <div style="color: #8c8c8c; font-size: 12px">{{ h.note || h.message || '' }}</div>
+          </a-timeline-item>
+        </a-timeline>
+        <a-empty v-if="!(detailTask.history || detailTask.transitions || []).length" description="无流转记录（可点开工生成）" />
+
+        <a-space style="margin-top: 16px">
+          <a-button type="primary" @click="goAudit(detailTask.id)">打开审核页</a-button>
+          <a-button @click="router.push(`/qc/annotate/${detailTask.id}`)">打开标注台</a-button>
+          <a-button @click="openComment(detailTask)">添加批注</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
   </div>
 </template>
 

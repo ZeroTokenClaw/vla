@@ -1,0 +1,129 @@
+const fs = require('fs')
+
+// ---------- vla mock ----------
+let vla = fs.readFileSync('E:/omp/vla/vla-demo-naive/src/mock/vla.js', 'utf8')
+vla = vla.replace(
+  /export const SCENE_OPTIONS = \[[\s\S]*?\]/,
+  `export const SCENE_OPTIONS = [
+  { value: 'stove_top', label: '灶台操作' },
+  { value: 'clean_bench', label: '洁净台' },
+  { value: 'tote_wall', label: '料箱墙' },
+  { value: 'dual_monitor', label: '双屏工位' },
+]`,
+)
+// Prepend seed import and wrap VLA_TASKS
+if (!vla.includes("from './seed/vla'")) {
+  vla = "import { seedVlaEpisodes } from './seed/vla'\n" + vla
+}
+vla = vla.replace(
+  '/** Seed collect tasks with linked multimodal assets + action spans. */\nexport const VLA_TASKS = [',
+  `/** Seed collect tasks with linked multimodal assets + action spans. */
+const VLA_HAND = [`,
+)
+vla = vla.replace(
+  /(\n\])\n\nexport function nextVlaId/,
+  `$1
+
+function buildVlaTasks() {
+  try {
+    return seedVlaEpisodes(VLA_HAND)
+  } catch (e) {
+    console.error('[lingmou] vla seed failed, fallback thin', e)
+    return VLA_HAND.map((t) => ({ ...t, signal: t.signal || { dof: [], claw: [], t: [], hz: 10 } }))
+  }
+}
+
+export const VLA_TASKS = buildVlaTasks()
+
+export function nextVlaId`,
+)
+fs.writeFileSync('E:/omp/vla/vla-demo-naive/src/mock/vla.js', vla)
+console.log('vla', vla.includes('seedVlaEpisodes'), vla.includes('stove_top'), !vla.includes('kitchen_counter'))
+
+// ---------- prelabel mock ----------
+let pre = fs.readFileSync('E:/omp/vla/vla-demo-naive/src/mock/prelabel.js', 'utf8')
+if (!pre.includes("from './seed/prelabel'")) {
+  pre = "import { seedTextDocs, seedVisionImages, seedAcceptJobs } from './seed/prelabel'\n" + pre
+}
+pre = pre.replace('export const TEXT_DOCS = [', 'const TEXT_HAND = [')
+pre = pre.replace('export const VISION_IMAGES = [', 'const VISION_HAND = [')
+// After VISION_HAND array comes ACCEPT_STEPS - need to export seeded constants
+// Find end of TEXT_HAND - it's followed by VISION
+// Actually after replace, TEXT_DOCS export gone. Add exports after both hands + wrap createAcceptJobs.
+
+// Insert after VISION_HAND closing - look for ACCEPT_STEPS
+if (!pre.includes('export const TEXT_DOCS')) {
+  pre = pre.replace(
+    /\nexport const ACCEPT_STEPS = \[/,
+    `
+export const TEXT_DOCS = (() => {
+  try { return seedTextDocs(TEXT_HAND) } catch (e) {
+    console.error('[lingmou] text seed failed', e); return TEXT_HAND
+  }
+})()
+
+export const VISION_IMAGES = (() => {
+  try { return seedVisionImages(VISION_HAND) } catch (e) {
+    console.error('[lingmou] vision seed failed', e); return VISION_HAND
+  }
+})()
+
+export const ACCEPT_STEPS = [`,
+  )
+}
+
+pre = pre.replace(
+  /export function createAcceptJobs\(\) \{\n  return \[/,
+  `export function createAcceptJobs() {
+  const hand = [`,
+)
+pre = pre.replace(
+  /(\n  \])\n\}(\s*)$/,
+  `$1
+  try {
+    return seedAcceptJobs(hand)
+  } catch (e) {
+    console.error('[lingmou] accept seed failed', e)
+    return hand
+  }
+}
+`,
+)
+fs.writeFileSync('E:/omp/vla/vla-demo-naive/src/mock/prelabel.js', pre)
+console.log('prelabel', pre.includes('seedTextDocs'), pre.includes('export const TEXT_DOCS'))
+
+// ---------- train mock ----------
+let tr = fs.readFileSync('E:/omp/vla/vla-demo-naive/src/mock/train.js', 'utf8')
+if (!tr.includes("from './seed/train'")) {
+  tr = "import { seedExperiments } from './seed/train'\n" + tr
+}
+tr = tr.replace(
+  '/** Seed experiments with LM-EXP- prefix */\nexport const EXPERIMENTS = [',
+  `/** Seed experiments with LM-EXP- prefix */\nconst EXP_HAND = [`,
+)
+tr = tr.replace(
+  /(\n\])\n\nexport function nextExpId/,
+  `$1
+
+function buildExperiments() {
+  try {
+    return seedExperiments(EXP_HAND)
+  } catch (e) {
+    console.error('[lingmou] train seed failed, fallback thin', e)
+    return EXP_HAND.map((e) => ({
+      ...e,
+      corpora: e.corpora || [],
+      snapshots: e.snapshots || [],
+      scoreSheet: e.scoreSheet || [],
+      mixMatrix: e.mixMatrix || [],
+      consoleLines: e.consoleLines || e.logs || [],
+    }))
+  }
+}
+
+export const EXPERIMENTS = buildExperiments()
+
+export function nextExpId`,
+)
+fs.writeFileSync('E:/omp/vla/vla-demo-naive/src/mock/train.js', tr)
+console.log('train', tr.includes('seedExperiments'), tr.includes('export const EXPERIMENTS'))

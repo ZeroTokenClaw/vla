@@ -229,14 +229,30 @@ function fieldClass(name) {
                 <div :class="['block', fieldClass('entities')]">
                   <div class="label-row">
                     <span class="label">实体识别 NER</span>
-                    <a-button  type="link" @click="addEntity">新增</a-button>
+                    <a-button type="link" @click="addEntity">新增</a-button>
                   </div>
                   <div v-for="e in draft.entities" :key="e.id" class="row-edit">
                     <a-input v-model:value="e.text" size="small" style="width: 90px" />
-                    <a-select v-model:value="e.type" size="small" style="width: 110px">
+                    <a-select v-model:value="e.type" size="small" style="width: 100px">
                       <a-select-option v-for="t in meta.entityTypes" :key="t" :value="t">{{ t }}</a-select-option>
                     </a-select>
-                    <a-button  type="link" danger @click="removeEntity(e.id)">删</a-button>
+                    <a-tooltip title="模型置信度（可改）">
+                      <a-progress
+                        type="circle"
+                        :percent="Math.round((e.conf ?? 0.8) * 100)"
+                        :width="28"
+                        :stroke-color="(e.conf ?? 0.8) >= 0.8 ? '#52c41a' : '#faad14'"
+                      />
+                    </a-tooltip>
+                    <a-button type="link" danger @click="removeEntity(e.id)">删</a-button>
+                  </div>
+                  <div v-if="pipelineResult?.entities?.length" class="diff-mini">
+                    <div class="label">模型 vs 人工 Diff（实体数）</div>
+                    <a-tag>模型 {{ pipelineResult.entities.length }}</a-tag>
+                    <a-tag color="processing">人工 {{ draft.entities.length }}</a-tag>
+                    <a-tag color="warning">
+                      Δ {{ draft.entities.length - pipelineResult.entities.length }}
+                    </a-tag>
                   </div>
                 </div>
 
@@ -301,6 +317,13 @@ function fieldClass(name) {
   font-size: 12px;
   color: #6b7280;
   margin-top: 4px;
+}
+.diff-mini {
+  margin-top: 8px;
+  padding: 6px 8px;
+  background: #f8fafc;
+  border-radius: 6px;
+  font-size: 12px;
 }
 .actions {
   display: flex;

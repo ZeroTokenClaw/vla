@@ -8,6 +8,8 @@ import {
   VISION_IMAGES,
   ACCEPT_STEPS,
   createAcceptJobs,
+  createPrelabelJobs,
+  PRELABEL_MODELS,
   ENTITY_TYPES,
   RELATION_TYPES,
   CLASS_LABELS,
@@ -29,6 +31,8 @@ const state = {
     changeLog: [],
   })),
   accepts: createAcceptJobs(),
+  jobs: createPrelabelJobs(),
+  jobSeq: createPrelabelJobs().length + 1,
 }
 
 function now() {
@@ -46,6 +50,7 @@ function clone(x) {
 
 export function listMeta() {
   return {
+    models: PRELABEL_MODELS.map((m) => ({ ...m, defaultParams: { ...m.defaultParams } })),
     entityTypes: ENTITY_TYPES,
     relationTypes: RELATION_TYPES,
     classLabels: CLASS_LABELS,
@@ -313,4 +318,76 @@ export async function advanceAcceptStep(id, { qaNote } = {}) {
   return { ...j, stepDone: [...j.stepDone] }
 }
 
-export { TEXT_DOCS, VISION_IMAGES, ACCEPT_STEPS, ENTITY_TYPES, RELATION_TYPES, CLASS_LABELS }
+export async function listPrelabelJobs(query = {}) {
+  await businessDelay()
+  let rows = state.jobs.map((j) => clone(j))
+  if (query.status) rows = rows.filter((j) => j.status === query.status)
+  if (query.keyword) {
+    const kw = String(query.keyword).trim()
+    rows = rows.filter((j) => j.id.includes(kw) || j.title.includes(kw))
+  }
+  return paginate(rows, query)
+}
+
+export async function createPrelabelJob(payload = {}) {
+  await businessDelay()
+  if (!payload.title?.trim()) throw new Error('请填写任务名称')
+  if (!payload.modelId) throw new Error('请选择模型')
+  if (!payload.sampleIds?.length) throw new Error('请至少选择一个样本')
+  const model = PRELABEL_MODELS.find((m) => m.id === payload.modelId)
+  if (!model) throw new Error(`模型不存在：${payload.modelId}`)
+  const id = `SC-PRE-2026-${String(state.jobSeq++).padStart(3, '0')}`
+  const job = {
+    id,
+    title: payload.title.trim(),
+    type: payload.type || model.type,
+    modelId: model.id,
+    modelVersion: model.version,
+    params: payload.params ? clone(payload.params) : clone(model.defaultParams),
+    sampleIds: [...payload.sampleIds],
+    status: 'running',
+    progressPct: 18,
+    successCount: 0,
+    failCount: 0,
+    retryCount: 0,
+    errorMessage: null,
+    createdAt: now(),
+    finishedAt: null,
+    diffStats: null,
+  }
+  state.jobs.unshift(job)
+  pushAudit({ action: '创建预标任务', detail: `${id} · ${model.name}` })
+  return clone(job)
+}
+
+export async function tickPrelabelJob(id) {
+  await businessDelay()
+  const j = state.jobs.find((x) => x.id === id)
+  if (!j) throw new Error(`预标任务不存在：${id}`)
+  if (j.status !== 'running') throw new Error('仅运行中任务可推进')
+  j.progressPct = Math.min(100, j.progressPct + 28)
+  if (j.progressPct >= 100) {
+    j.status = 'success'
+    j.progressPct = 100
+    j.successCount = j.sampleIds.length
+    j.finishedAt = now()
+    j.diffStats = { entityFixRate: 0.12, yoloFixRate: 0.09 }
+  }
+  return clone(j)
+}
+
+export async function retryPrelabelJob(id) {
+  await businessDelay()
+  const j = state.jobs.find((x) => x.id === id)
+  if (!j) throw new Error(`预标任务不存在：${id}`)
+  if (j.status !== 'failed' && j.status !== 'partial') throw new Error('仅失败任务可重试')
+  j.retryCount += 1
+  j.status = 'running'
+  j.progressPct = 10
+  j.errorMessage = null
+  j.finishedAt = null
+  pushAudit({ action: '重试预标任务', detail: id })
+  return clone(j)
+}
+
+export { TEXT_DOCS, VISION_IMAGES, ACCEPT_STEPS, PRELABEL_MODELS, ENTITY_TYPES, RELATION_TYPES, CLASS_LABELS }

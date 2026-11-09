@@ -11,6 +11,8 @@ import {
   SCENE_OPTIONS,
   PLAN_OPTIONS,
   ISSUE_TYPES,
+  COLLECT_DEVICES,
+  DETECTOR_META,
   nextVlaId,
 } from '@/mock/vla'
 import { users } from '@/mock/users'
@@ -31,10 +33,15 @@ function actorName() {
 const state = {
   tasks: VLA_TASKS.map((t) => ({
     ...clone(t),
+    deviceIds: t.deviceIds || [],
+    targetCount: t.targetCount || 20,
+    collectedCount: t.collectedCount ?? Math.min(t.actions?.length || 0, 20),
     issues: [],
     issuesDetected: false,
     filteredOut: [],
+    detectorMeta: null,
   })),
+  devices: COLLECT_DEVICES.map((d) => clone(d)),
   seq: VLA_TASKS.length + 1,
 }
 
@@ -45,7 +52,50 @@ export function listMeta() {
     plans: PLAN_OPTIONS,
     actionTemplates: ACTION_TEMPLATES,
     issueTypes: ISSUE_TYPES,
+    devices: state.devices.map((d) => ({
+      id: d.id,
+      name: d.name,
+      type: d.type,
+      typeLabel: d.typeLabel,
+      status: d.status,
+    })),
+    detectorMeta: { ...DETECTOR_META },
     personnel: users.map((u) => ({ id: u.id, name: u.name, role: u.role, pool: u.pool })),
+  }
+}
+
+export async function listDevices(query = {}) {
+  await businessDelay()
+  let rows = state.devices.map((d) => clone(d))
+  if (query.status) rows = rows.filter((d) => d.status === query.status)
+  if (query.type) rows = rows.filter((d) => d.type === query.type)
+  if (query.keyword) {
+    const kw = String(query.keyword).trim().toLowerCase()
+    rows = rows.filter(
+      (d) =>
+        d.id.toLowerCase().includes(kw) ||
+        d.name.toLowerCase().includes(kw) ||
+        (d.sn || '').toLowerCase().includes(kw),
+    )
+  }
+  return paginate(rows, query)
+}
+
+export async function getCollectStats() {
+  await businessDelay()
+  const tasks = state.tasks
+  const byStatus = {}
+  for (const t of tasks) byStatus[t.status] = (byStatus[t.status] || 0) + 1
+  const target = tasks.reduce((s, t) => s + (t.targetCount || 0), 0)
+  const collected = tasks.reduce((s, t) => s + (t.collectedCount || 0), 0)
+  return {
+    taskTotal: tasks.length,
+    byStatus,
+    targetCount: target,
+    collectedCount: collected,
+    progressPct: target ? Math.round((collected / target) * 100) : 0,
+    deviceTotal: state.devices.length,
+    deviceOnline: state.devices.filter((d) => d.status === 'online').length,
   }
 }
 
@@ -429,4 +479,4 @@ export function buildVlaExportFilename(taskId, format, timestamp = dayjs().forma
   return `${base}.${ext}`
 }
 
-export { ISSUE_TYPES, ACTION_TEMPLATES, COLLECT_MODES, SCENE_OPTIONS, PLAN_OPTIONS }
+export { ISSUE_TYPES, ACTION_TEMPLATES, COLLECT_MODES, SCENE_OPTIONS, PLAN_OPTIONS, COLLECT_DEVICES, DETECTOR_META }

@@ -9,6 +9,7 @@ import {
   MODELS,
   GPU_CARDS,
   AUGMENT_OPTIONS,
+  DATASET_OPTIONS,
   EXPERIMENTS,
   nextExpId,
   mockMetricPoint,
@@ -73,7 +74,29 @@ export function listMeta() {
     models: MODELS,
     gpus: state.gpus.map((g) => ({ ...g })),
     augmentOptions: AUGMENT_OPTIONS,
+    datasets: DATASET_OPTIONS.map((d) => ({ ...d })),
   }
+}
+
+/** 刷新 GPU 监控伪造读数（演示） */
+export async function refreshGpuMetrics() {
+  await businessDelay()
+  for (const g of state.gpus) {
+    if (g.free) {
+      g.utilPct = Math.max(0, Math.min(25, Math.round(g.utilPct + (Math.random() * 6 - 3))))
+      g.memUsedGb = Number(Math.max(0.5, Math.min(g.memoryGb * 0.2, g.memUsedGb + (Math.random() - 0.5))).toFixed(1))
+      g.temperature = Math.max(32, Math.min(50, Math.round(g.temperature + (Math.random() * 4 - 2))))
+      g.powerW = Math.max(25, Math.min(120, Math.round(g.powerW + (Math.random() * 10 - 5))))
+    } else {
+      g.utilPct = Math.max(55, Math.min(98, Math.round(g.utilPct + (Math.random() * 8 - 4))))
+      g.memUsedGb = Number(
+        Math.max(g.memoryGb * 0.5, Math.min(g.memoryGb * 0.95, g.memUsedGb + (Math.random() - 0.5) * 1.5)).toFixed(1),
+      )
+      g.temperature = Math.max(60, Math.min(84, Math.round(g.temperature + (Math.random() * 4 - 2))))
+      g.powerW = Math.max(180, Math.min(300, Math.round(g.powerW + (Math.random() * 20 - 10))))
+    }
+  }
+  return state.gpus.map((g) => ({ ...g }))
 }
 
 /**
@@ -117,7 +140,7 @@ export async function getExperiment(expId) {
 
 /**
  * 创建训练实验（仅管理员）
- * @param {{ name: string, algorithm: string, version: string, model: string, batchSize: number, learningRate: number, epochs: number, augment: boolean, augmentOps?: string[], gpuIds?: string[] }} cfg
+ * @param {{ name: string, algorithm: string, version: string, model: string, batchSize: number, learningRate: number, epochs: number, augment: boolean, augmentOps?: string[], gpuIds?: string[], datasetIds?: string[] }} cfg
  */
 export async function createExperiment(cfg) {
   await businessDelay()
@@ -136,6 +159,19 @@ export async function createExperiment(cfg) {
   const id = nextExpId(state.seq++)
   const gpuIds = Array.isArray(cfg.gpuIds) ? [...cfg.gpuIds] : []
   const thick = emptyThickFields(id)
+  if (cfg.datasetIds?.length) {
+    thick.datasets = cfg.datasetIds
+      .map((dsId) => DATASET_OPTIONS.find((d) => d.id === dsId))
+      .filter(Boolean)
+      .map((d) => ({
+        id: d.id,
+        name: d.name,
+        split: d.split,
+        versionPin: d.versionPin,
+        sampleCount: d.sampleCount,
+      }))
+    if (!thick.datasets.length) thick.datasets = emptyThickFields(id).datasets
+  }
   const exp = {
     id,
     name: cfg.name.trim(),
@@ -153,7 +189,8 @@ export async function createExperiment(cfg) {
     createdAt: now(),
     startedAt: null,
     finishedAt: null,
-    logs: [{ at: now(), level: 'info', message: '实验已创建' }],
+    pausedAt: null,
+    logs: [{ at: now(), level: 'info', message: '实验已创建（演示指标由 epoch 推进写入）' }],
     metrics: { loss: [], acc: [], map: [] },
     ...thick,
   }
@@ -241,15 +278,66 @@ export async function stopTrain(expId) {
   await businessDelay()
   requireAdmin('停止训练')
   const exp = findExp(expId)
-  if (exp.status !== 'running') throw new Error('当前不在运行状态')
+  if (exp.status !== 'running' && exp.status !== 'paused') throw new Error('当前不在运行/暂停状态')
   exp.status = exp.currentEpoch >= exp.epochs ? 'finished' : 'stopped'
   if (exp.status === 'finished') exp.finishedAt = now()
+  exp.pausedAt = null
   exp.logs.push({
     at: now(),
     level: 'warning',
     message: `手动停止 · 已完成 epoch ${exp.currentEpoch}/${exp.epochs}`,
   })
   pushAudit({ action: '停止训练', detail: `${expId} · epoch ${exp.currentEpoch}` })
+  return clone(exp)
+}
+
+/** 暂停训练（仅管理员） */
+export async function pauseTrain(expId) {
+  await businessDelay()
+  requireAdmin('暂停训练')
+  const exp = findExp(expId)
+  if (exp.status !== 'running') throw new Error('仅运行中可暂停')
+  exp.status = 'paused'
+  exp.pausedAt = now()
+  exp.logs.push({
+    at: now(),
+    level: 'warning',
+    message: `已暂停 · epoch ${exp.currentEpoch}/${exp.epochs}`,
+  })
+  pushAudit({ action: '暂停训练', detail: `${expId} · epoch ${exp.currentEpoch}` })
+  return clone(exp)
+}
+
+/** 恢复训练（仅管理员） */
+export async function resumeTrain(expId) {
+  await businessDelay()
+  requireAdmin('恢复训练')
+  const exp = findExp(expId)
+  if (exp.status !== 'paused') throw new Error('仅暂停中可恢复')
+  exp.status = 'running'
+  exp.pausedAt = null
+  exp.logs.push({ at: now(), level: 'info', message: `已恢复 · 自 epoch ${exp.currentEpoch} 继续` })
+  pushAudit({ action: '恢复训练', detail: expId })
+  return clone(exp)
+}
+
+/** 失败/停止后重试（仅管理员） */
+export async function retryTrain(expId) {
+  await businessDelay()
+  requireAdmin('重试训练')
+  const exp = findExp(expId)
+  if (!['stopped', 'failed', 'finished'].includes(exp.status)) {
+    throw new Error('仅停止/失败/已完成实验可重试')
+  }
+  if (!exp.gpuIds.length) throw new Error('请先分配 GPU')
+  exp.status = 'running'
+  exp.currentEpoch = 0
+  exp.metrics = { loss: [], acc: [], map: [] }
+  exp.startedAt = now()
+  exp.finishedAt = null
+  exp.pausedAt = null
+  exp.logs.push({ at: now(), level: 'info', message: '重试训练：已重置 epoch 与指标序列' })
+  pushAudit({ action: '重试训练', detail: expId })
   return clone(exp)
 }
 
@@ -372,4 +460,4 @@ export function metricsSeriesLength(metrics) {
   }
 }
 
-export { ALGORITHMS, MODELS, GPU_CARDS, AUGMENT_OPTIONS, mockMetricPoint }
+export { ALGORITHMS, MODELS, GPU_CARDS, AUGMENT_OPTIONS, DATASET_OPTIONS, mockMetricPoint }

@@ -243,6 +243,20 @@ async function toggleAugmentDisplay() {
             label="模拟训练步进（loss / acc / mAP 写入中）"
             :duration="800" />
 
+          <a-row :gutter="12" style="margin-bottom: 12px" v-if="exp.gpuIds?.length">
+            <a-col :span="8" v-for="gid in exp.gpuIds" :key="gid">
+              <a-card size="small">
+                <div style="font-size: 12px; color: #64748b">{{ gid }} 利用率（伪造）</div>
+                <a-progress
+                  :percent="exp.status === 'running' ? 55 + Math.round(Math.random() * 35) : exp.status === 'finished' ? 0 : 12"
+                  size="small"
+                  status="active"
+                />
+                <div style="font-size: 11px; color: #94a3b8">显存占用演示值，非 NVML</div>
+              </a-card>
+            </a-col>
+          </a-row>
+
           <h4>运行日志</h4>
           <a-timeline class="logs">
             <a-timeline-item

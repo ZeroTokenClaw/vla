@@ -7,6 +7,7 @@ import {
   listMeta,
   listVlaTasks,
   createCollectTask,
+  getCollectStats,
 } from '@/services/vla'
 
 const router = useRouter()
@@ -16,6 +17,7 @@ const tasks = ref([])
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+const collectStats = ref(null)
 const filters = reactive({
   scene: '',
   mode: '',
@@ -28,11 +30,18 @@ const meta = reactive({
   plans: [],
   actionTemplates: [],
   personnel: [],
+  devices: [],
 })
 const statusOptions = [
   { value: 'ready', label: 'ready' },
   { value: 'annotating', label: 'annotating' },
   { value: 'done', label: 'done' },
+]
+const dataTypeOptions = [
+  { value: 'video', label: '视频' },
+  { value: 'image', label: '图像' },
+  { value: 'action', label: '连续动作' },
+  { value: 'sync', label: '多模态同步' },
 ]
 
 const formRef = ref()
@@ -43,6 +52,10 @@ const form = reactive({
   mode: '',
   actionTemplateIds: [],
   personnelIds: [],
+  deviceIds: [],
+  dataTypes: ['video', 'action'],
+  targetCount: 20,
+  qualityRequirement: '',
   instruction: '',
 })
 
@@ -60,17 +73,21 @@ async function refresh() {
   try {
     const m = listMeta()
     Object.assign(meta, m)
-    const res = await listVlaTasks({
-      page: page.value,
-      pageSize: pageSize.value,
-      scene: filters.scene || undefined,
-      mode: filters.mode || undefined,
-      status: filters.status || undefined,
-      keyword: filters.keyword || undefined,
-    })
+    const [res, st] = await Promise.all([
+      listVlaTasks({
+        page: page.value,
+        pageSize: pageSize.value,
+        scene: filters.scene || undefined,
+        mode: filters.mode || undefined,
+        status: filters.status || undefined,
+        keyword: filters.keyword || undefined,
+      }),
+      getCollectStats(),
+    ])
     tasks.value = res.items
     total.value = res.total
     page.value = res.page
+    collectStats.value = st
   } finally {
     loading.value = false
   }
@@ -122,6 +139,17 @@ onMounted(refresh)
 
 <template>
   <div v-loading="loading" class="collect">
+    <el-row v-if="collectStats" :gutter="12" class="stats">
+      <el-col :span="6"><el-statistic title="任务总数" :value="collectStats.taskTotal" /></el-col>
+      <el-col :span="6">
+        <el-statistic title="已采集/目标" :value="collectStats.collectedCount" :suffix="` / ${collectStats.targetCount}`" />
+      </el-col>
+      <el-col :span="6"><el-statistic title="采集进度" :value="collectStats.progressPct" suffix="%" /></el-col>
+      <el-col :span="6">
+        <el-statistic title="在线设备" :value="collectStats.deviceOnline" :suffix="` / ${collectStats.deviceTotal}`" />
+      </el-col>
+    </el-row>
+
     <el-row :gutter="16">
       <el-col :span="10">
         <el-card shadow="never" class="card">
@@ -196,6 +224,38 @@ onMounted(refresh)
                 />
               </el-select>
             </el-form-item>
+            <el-form-item label="采集设备">
+              <el-select
+                v-model="form.deviceIds"
+                multiple
+                collapse-tags
+                placeholder="关联设备（可空）"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="d in meta.devices"
+                  :key="d.id"
+                  :label="`${d.name} · ${d.typeLabel} · ${d.status}`"
+                  :value="d.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="数据类型">
+              <el-select v-model="form.dataTypes" multiple collapse-tags style="width: 100%">
+                <el-option v-for="d in dataTypeOptions" :key="d.value" :label="d.label" :value="d.value" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="目标条数">
+              <el-input-number v-model="form.targetCount" :min="1" :max="500" />
+            </el-form-item>
+            <el-form-item label="质量要求">
+              <el-input
+                v-model="form.qualityRequirement"
+                type="textarea"
+                :rows="2"
+                placeholder="例如：画面稳定、关键帧清晰、动作与指令一致"
+              />
+            </el-form-item>
             <el-form-item label="任务指令">
               <el-input
                 v-model="form.instruction"
@@ -258,6 +318,9 @@ onMounted(refresh)
               <template #default="{ row }">{{ labelOf(meta.modes, row.mode) }}</template>
             </el-table-column>
             <el-table-column prop="actionCount" label="动作数" width="70" />
+            <el-table-column label="采集量" width="100">
+              <template #default="{ row }">{{ row.collectedCount || 0 }}/{{ row.targetCount || 0 }}</template>
+            </el-table-column>
             <el-table-column prop="status" label="状态" width="90">
               <template #default="{ row }">
                 <el-tag size="small" :type="row.status === 'annotating' ? 'warning' : 'info'">
@@ -290,6 +353,12 @@ onMounted(refresh)
 </template>
 
 <style scoped>
+.stats {
+  margin-bottom: 12px;
+  background: #fff;
+  padding: 14px 12px;
+  border-radius: 8px;
+}
 .card {
   border-radius: 8px;
 }

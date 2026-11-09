@@ -106,14 +106,20 @@ export async function createCollectTask(config) {
     mode: config.mode,
     actionTemplateIds: [...config.actionTemplateIds],
     personnelIds: [...config.personnelIds],
+    deviceIds: config.deviceIds ? [...config.deviceIds] : [],
+    robotModel: config.robotModel || '',
+    frequencyHz: config.frequencyHz ?? 10,
+    durationPlanSec: config.durationPlanSec ?? 12,
+    qualityReq: config.qualityReq || '无严重抖动/遮挡，指令与关键节点完整',
+    reviewerIds: config.reviewerIds ? [...config.reviewerIds] : [],
     instruction:
       config.instruction?.trim() ||
       `采集任务「${config.name.trim()}」：按所选动作模板完成示范并标注起止帧。`,
     imageUrl: '/samples/video/bin_pick_poster.jpg',
     videoUrl: '/samples/video/bin_pick.mp4',
-    fps: 10,
-    totalFrames: 100,
-    durationSec: 10,
+    fps: config.frequencyHz ?? 10,
+    totalFrames: Math.max(60, Math.round((config.durationPlanSec ?? 12) * (config.frequencyHz ?? 10))),
+    durationSec: config.durationPlanSec ?? 12,
     status: 'ready',
     createdAt: now(),
     actions: [],
@@ -251,10 +257,20 @@ export async function detectIssues(taskId) {
         },
       ]
 
-  t.issues = seeded.map((i) => ({
+  t.issues = seeded.map((i, idx) => ({
     ...i,
+    id: i.id || `iss-auto-${Date.now()}-${idx + 1}`,
     unqualified: false,
     filtered: false,
+    severity: i.severity || (idx % 3 === 0 ? 'high' : idx % 3 === 1 ? 'medium' : 'low'),
+    evidence: i.evidence || {
+      score: Number((0.25 + Math.random() * 0.7).toFixed(3)),
+      threshold: i.type === 'blur' ? 50 : i.type === 'jitter' ? 0.35 : 0.5,
+      detectorVersion: 'vla-qc-0.1-demo',
+      frameStart: i.frame ?? i.frameStart ?? 0,
+      frameEnd: (i.frame ?? i.frameStart ?? 0) + 3,
+      note: '伪造视觉/规则检测证据，非真实 OpenCV 输出',
+    },
   }))
   t.issuesDetected = true
   t.filteredOut = []

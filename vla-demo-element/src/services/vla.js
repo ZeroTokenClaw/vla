@@ -11,6 +11,8 @@ import {
   SCENE_OPTIONS,
   PLAN_OPTIONS,
   ISSUE_TYPES,
+  COLLECT_DEVICES,
+  DETECTOR_META,
   nextVlaId,
 } from '@/mock/vla'
 import { users } from '@/mock/users'
@@ -31,10 +33,15 @@ function actorName() {
 const state = {
   tasks: VLA_TASKS.map((t) => ({
     ...clone(t),
+    deviceIds: t.deviceIds || [],
+    targetCount: t.targetCount || 20,
+    collectedCount: t.collectedCount ?? Math.min(t.actions?.length || 0, 20),
     issues: [],
     issuesDetected: false,
     filteredOut: [],
+    detectorMeta: null,
   })),
+  devices: COLLECT_DEVICES.map((d) => clone(d)),
   seq: VLA_TASKS.length + 1,
 }
 
@@ -45,7 +52,53 @@ export function listMeta() {
     plans: PLAN_OPTIONS,
     actionTemplates: ACTION_TEMPLATES,
     issueTypes: ISSUE_TYPES,
+    devices: state.devices.map((d) => ({
+      id: d.id,
+      name: d.name,
+      type: d.type,
+      typeLabel: d.typeLabel,
+      status: d.status,
+    })),
+    detectorMeta: { ...DETECTOR_META },
     personnel: users.map((u) => ({ id: u.id, name: u.name, role: u.role, dept: u.dept })),
+  }
+}
+
+export async function listDevices(query = {}) {
+  await businessDelay()
+  let rows = state.devices.map((d) => clone(d))
+  if (query.status) rows = rows.filter((d) => d.status === query.status)
+  if (query.type) rows = rows.filter((d) => d.type === query.type)
+  if (query.keyword) {
+    const kw = String(query.keyword).trim().toLowerCase()
+    rows = rows.filter(
+      (d) =>
+        d.id.toLowerCase().includes(kw) ||
+        d.name.toLowerCase().includes(kw) ||
+        (d.sn || '').toLowerCase().includes(kw),
+    )
+  }
+  return paginate(rows, query)
+}
+
+export async function getCollectStats() {
+  await businessDelay()
+  const tasks = state.tasks
+  const byStatus = {}
+  for (const t of tasks) {
+    byStatus[t.status] = (byStatus[t.status] || 0) + 1
+  }
+  const target = tasks.reduce((s, t) => s + (t.targetCount || 0), 0)
+  const collected = tasks.reduce((s, t) => s + (t.collectedCount || 0), 0)
+  const onlineDevices = state.devices.filter((d) => d.status === 'online').length
+  return {
+    taskTotal: tasks.length,
+    byStatus,
+    targetCount: target,
+    collectedCount: collected,
+    progressPct: target ? Math.round((collected / target) * 100) : 0,
+    deviceTotal: state.devices.length,
+    deviceOnline: onlineDevices,
   }
 }
 
@@ -63,6 +116,9 @@ export async function listVlaTasks(query = {}) {
     issueCount: t.issues.length,
     issuesDetected: t.issuesDetected,
     personnelIds: [...t.personnelIds],
+    deviceIds: [...(t.deviceIds || [])],
+    targetCount: t.targetCount || 0,
+    collectedCount: t.collectedCount || 0,
   }))
   if (query.scene) rows = rows.filter((t) => t.scene === query.scene)
   if (query.mode) rows = rows.filter((t) => t.mode === query.mode)
@@ -100,11 +156,18 @@ export async function createCollectTask(config) {
 
   const id = nextVlaId(state.seq++)
   const templates = ACTION_TEMPLATES.filter((a) => config.actionTemplateIds.includes(a.id))
+  const deviceIds = Array.isArray(config.deviceIds) ? [...config.deviceIds] : []
+  for (const did of deviceIds) {
+    const dev = state.devices.find((d) => d.id === did)
+    if (!dev) throw new Error(`设备不存在：${did}`)
+    if (!dev.boundTaskIds.includes(id)) dev.boundTaskIds.push(id)
+  }
   const epN = String(((state.seq - 2) % 6) + 1).padStart(2, '0')
   const mediaUrls = {
     videoUrl: '/samples/video/ep_' + epN + '.mp4',
     imageUrl: '/samples/video/ep_' + epN + '_poster.jpg',
   }
+  const targetCount = Number(config.targetCount) > 0 ? Number(config.targetCount) : 20
   const task = {
     id,
     name: config.name.trim(),
@@ -113,6 +176,11 @@ export async function createCollectTask(config) {
     mode: config.mode,
     actionTemplateIds: [...config.actionTemplateIds],
     personnelIds: [...config.personnelIds],
+    deviceIds,
+    targetCount,
+    collectedCount: 0,
+    dataTypes: config.dataTypes?.length ? [...config.dataTypes] : ['video', 'action'],
+    qualityRequirement: config.qualityRequirement?.trim() || '画面稳定、关键帧清晰、动作与指令一致',
     instruction:
       config.instruction?.trim() ||
       `采集任务「${config.name.trim()}」：按所选动作模板完成示范并标注起止帧。`,
@@ -128,6 +196,7 @@ export async function createCollectTask(config) {
     issues: [],
     issuesDetected: false,
     filteredOut: [],
+    detectorMeta: null,
     trajectory: {
       joints: Array.from({ length: 12 }, (_, i) =>
         Array.from({ length: 7 }, (__, j) => Number((0.1 * i + 0.01 * j).toFixed(4))),
@@ -141,7 +210,7 @@ export async function createCollectTask(config) {
   state.tasks.unshift(task)
   pushAudit({
     action: '创建具身采集任务',
-    detail: `${id} · ${task.name} · 模式 ${config.mode} · 人员 ${config.personnelIds.length}`,
+    detail: `${id} · ${task.name} · 模式 ${config.mode} · 设备 ${deviceIds.length} · 人员 ${config.personnelIds.length}`,
   })
   return clone(task)
 }
@@ -270,9 +339,11 @@ export async function detectIssues(taskId) {
     ...i,
     unqualified: false,
     filtered: false,
+    detectorVersion: DETECTOR_META.version,
   }))
   t.issuesDetected = true
   t.filteredOut = []
+  t.detectorMeta = { ...DETECTOR_META, ranAt: now() }
 
   const summary = {}
   for (const it of ISSUE_TYPES) summary[it.key] = 0
@@ -280,9 +351,9 @@ export async function detectIssues(taskId) {
 
   pushAudit({
     action: '运行样本质检检测',
-    detail: `${taskId} · 检出 ${t.issues.length} 条 · 抖动/遮挡/模糊/缺失/不匹配`,
+    detail: `${taskId} · ${DETECTOR_META.version} · 检出 ${t.issues.length} 条 · 抖动/遮挡/模糊/缺失/不匹配`,
   })
-  return { issues: clone(t.issues), summary }
+  return { issues: clone(t.issues), summary, detectorMeta: clone(t.detectorMeta) }
 }
 
 /** 标记不合格样本 */
@@ -441,4 +512,4 @@ export function buildVlaExportFilename(taskId, format, timestamp = dayjs().forma
   return `${base}.${ext}`
 }
 
-export { ISSUE_TYPES, ACTION_TEMPLATES, COLLECT_MODES, SCENE_OPTIONS, PLAN_OPTIONS }
+export { ISSUE_TYPES, ACTION_TEMPLATES, COLLECT_MODES, SCENE_OPTIONS, PLAN_OPTIONS, COLLECT_DEVICES, DETECTOR_META }

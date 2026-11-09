@@ -2,10 +2,13 @@
 import { useRouter } from 'vue-router'
 import { copy } from '@/i18n/copy'
 import {
+  ClusterOutlined,
   SafetyCertificateOutlined,
   ThunderboltOutlined,
   VideoCameraOutlined,
   ExperimentOutlined,
+  SettingOutlined,
+  BarChartOutlined,
   CheckCircleOutlined,
 } from '@ant-design/icons-vue'
 
@@ -13,24 +16,34 @@ const router = useRouter()
 
 const tourSteps = [
   {
-    title: 'Create a Job',
-    description: '在 QC 质控中创建标注 Job，分配 Annotator / Reviewer。',
+    title: 'Orchestrate Pipeline',
+    description: '在 Factory 创建生产任务，拖拽 16 类节点编排流水线并监控执行。',
   },
   {
-    title: 'Run Prelabel',
-    description: '用模型预标文本与视觉 Dataset，再人工修正。',
+    title: 'Annotate & Review',
+    description: '多模态标注、协作审核与抽检回流，保证合格数据入库。',
   },
   {
-    title: 'Capture VLA',
-    description: '配置采集方案，在时间轴标注动作并导出 JSON / Excel / CSV。',
+    title: 'Prelabel & VLA',
+    description: 'OCR/YOLO/NLP 预标修正，VLA 动作结构化并三格式导出。',
   },
   {
     title: 'Train & Validate',
-    description: '创建训练实验，观察 loss / acc / mAP 并导出报表。',
+    description: '配置实验与 GPU，观察指标曲线并导出训练报表。',
   },
 ]
 
 const projects = [
+  {
+    id: 'ADF-PROD-2026-001',
+    title: 'Production Pipeline',
+    module: copy.modules.factory,
+    path: '/factory/dashboard',
+    desc: '驾驶舱 · 生产任务 · 可执行编排 · 节点监控',
+    status: 'Core',
+    color: '#1677ff',
+    icon: ClusterOutlined,
+  },
   {
     id: 'ORN-JOB-QC-88421',
     title: 'Multimodal QC Dataset',
@@ -38,7 +51,7 @@ const projects = [
     path: '/qc',
     desc: '文本 NER · 分割 · 语音切片 · 视频检测 · 点云',
     status: 'Active',
-    color: '#1677ff',
+    color: '#2f54eb',
     icon: SafetyCertificateOutlined,
   },
   {
@@ -56,7 +69,7 @@ const projects = [
     title: 'Embodied Capture Pack',
     module: copy.modules.vla,
     path: '/vla/collect',
-    desc: '动作模板 · 关键帧 · 样本质检门禁',
+    desc: '场景方案 · 动作模板 · 时间轴 · 异常处理',
     status: 'In review',
     color: '#13c2c2',
     icon: VideoCameraOutlined,
@@ -65,11 +78,31 @@ const projects = [
     id: 'ORN-EXP-2026-001',
     title: 'Training Lab',
     module: copy.modules.train,
-    path: '/train/config',
-    desc: '算法版本 · GPU 分配 · 指标曲线',
+    path: '/train/compare',
+    desc: '多模型对比 · 数据血缘 · GPU · 评测报表',
     status: 'Idle',
     color: '#52c41a',
     icon: ExperimentOutlined,
+  },
+  {
+    id: 'ADF-AN-01',
+    title: 'Analytics Desk',
+    module: 'Analytics 分析',
+    path: '/analytics/profile',
+    desc: '数据画像 · 质量评分卡 · 异常分析',
+    status: 'Insight',
+    color: '#eb2f96',
+    icon: BarChartOutlined,
+  },
+  {
+    id: 'ADF-SYS-01',
+    title: 'System Console',
+    module: copy.modules.system,
+    path: '/system/models',
+    desc: '模型注册 · 导出中心 · 权限 · 审计日志',
+    status: 'Ops',
+    color: '#8c8c8c',
+    icon: SettingOutlined,
   },
 ]
 </script>
@@ -78,37 +111,40 @@ const projects = [
   <div class="home">
     <div class="hero">
       <div>
-        <a-tag color="processing">SaaS Workspace</a-tag>
+        <a-tag color="processing">AI Data Factory · Demo Fake Data</a-tag>
         <h1>{{ copy.home.title }}</h1>
         <p class="sub">{{ copy.home.subtitle }}</p>
       </div>
-      <a-button type="primary" size="large" @click="router.push('/qc')">Create job</a-button>
+      <a-space>
+        <a-button size="large" @click="router.push('/factory/tasks')">Create production task</a-button>
+        <a-button type="primary" size="large" @click="router.push('/factory/dashboard')">Open cockpit</a-button>
+      </a-space>
     </div>
 
     <a-card class="tour-card" :bordered="false">
       <template #title>
         <span>Product Tour</span>
       </template>
-      <a-steps :current="1" label-placement="vertical">
+      <a-steps :current="0" label-placement="vertical">
         <a-step
           v-for="(s, i) in tourSteps"
           :key="s.title"
           :title="s.title"
           :description="s.description"
-          :status="i < 1 ? 'finish' : i === 1 ? 'process' : 'wait'"
+          :status="i === 0 ? 'process' : 'wait'"
         >
-          <template v-if="i < 1" #icon><CheckCircleOutlined /></template>
+          <template v-if="i < 0" #icon><CheckCircleOutlined /></template>
         </a-step>
       </a-steps>
     </a-card>
 
     <div class="section-head">
-      <h2>Dataset Projects</h2>
-      <span class="hint">Open a card to enter the module — bilingual empty states inside.</span>
+      <h2>Workspace Modules</h2>
+      <span class="hint">全部页面使用逼真伪造数据，便于招标演示与录屏。</span>
     </div>
 
     <a-row :gutter="[16, 16]">
-      <a-col v-for="p in projects" :key="p.id" :xs="24" :sm="12" :lg="6">
+      <a-col v-for="p in projects" :key="p.id" :xs="24" :sm="12" :lg="8">
         <a-card hoverable class="project-card" @click="router.push(p.path)">
           <div class="card-top">
             <div class="icon" :style="{ background: p.color + '22', color: p.color }">
@@ -125,8 +161,6 @@ const projects = [
         </a-card>
       </a-col>
     </a-row>
-
-    <a-empty v-if="!projects.length" :description="copy.empty.jobs" />
   </div>
 </template>
 
@@ -146,7 +180,7 @@ h1 {
 .sub {
   margin: 8px 0 0;
   color: #64748b;
-  max-width: 560px;
+  max-width: 640px;
 }
 .tour-card {
   margin-bottom: 24px;

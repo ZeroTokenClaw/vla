@@ -28,8 +28,8 @@ function onTab(path) {
   <div class="hub">
     <div class="hub-head">
       <div>
-        <h2>质控舱</h2>
-        <p class="sub">多模态标注会话 · 协作闭环 · 抽检回流库</p>
+        <h2>多模态数据分析与标注中心</h2>
+        <p class="sub">五模态标注 · 协作审核 · 抽检回流 · 与画像/异常分析联动</p>
       </div>
     </div>
 

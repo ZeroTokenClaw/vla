@@ -1,0 +1,1 @@
+"""StarCompute backend application package."""

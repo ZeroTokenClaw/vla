@@ -76,6 +76,11 @@ export function seedVlaEpisodes(hand, seed = 0x11A10E01) {
     out.push({
       id,
       name: `LingMou采集episode-${seq}`,
+      deviceIds: rng.next() > 0.5 ? ['DEV-LM-CAM-01'] : [],
+      targetCount: rng.int(10, 40),
+      collectedCount: rng.int(0, 15),
+      dataTypes: ['video', 'action'],
+      qualityRequirement: '画面稳定、关键帧清晰',
       scene,
       plan,
       mode,

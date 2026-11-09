@@ -206,8 +206,8 @@ const ornTableCols2 = [
 <a-switch v-model:checked="record.enabled" :disabled="!canConfig" />
       </template>
       <template v-if="column.key === '操作'">
-<a-button  type="" :disabled="!canConfig" @click="saveRule(row)">保存</a-button>
-            <a-button  type="" :disabled="!record.enabled" @click="runRule(record.id)">
+<a-button type="link" size="small" :disabled="!canConfig" @click="saveRule(record)">保存</a-button>
+            <a-button type="link" size="small" :disabled="!record.enabled" @click="runRule(record.id)">
               随机抽检
             </a-button>
       </template>
@@ -218,6 +218,26 @@ const ornTableCols2 = [
           lastRun.pickedIds?.join(', ')
         }}）
       </p>
+    </a-card>
+
+    <a-card class="mb" title="人员质量报表（伪造）">
+      <a-table
+        size="small"
+        :pagination="false"
+        row-key="name"
+        :data-source="[
+          { name: '陈思远', done: 128, passRate: 0.93, rejectRate: 0.07, reflux: 86 },
+          { name: '赵雨桐', done: 102, passRate: 0.89, rejectRate: 0.11, reflux: 64 },
+          { name: '林晓萱', done: 54, passRate: 0.96, rejectRate: 0.04, reflux: 40 },
+        ]"
+        :columns="[
+          { title: '人员', dataIndex: 'name' },
+          { title: '完成量', dataIndex: 'done' },
+          { title: '合格率', dataIndex: 'passRate' },
+          { title: '驳回率', dataIndex: 'rejectRate' },
+          { title: '回流贡献', dataIndex: 'reflux' },
+        ]"
+      />
     </a-card>
 
     <a-card>

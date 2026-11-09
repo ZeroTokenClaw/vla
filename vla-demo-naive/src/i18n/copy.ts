@@ -1,14 +1,18 @@
 export const copy = {
-  productName: '灵眸 VLA Studio',
-  productShort: '灵眸',
-  vendor: '灵眸智造',
-  envBadge: 'Studio',
+  productName: 'EIDE 数据智能分析台',
+  productShort: 'EIDE',
+  vendor: '具身智能数据与评测',
+  envBadge: 'Analysis',
   modules: {
-    home: '会话',
-    qc: '质控舱',
-    prelabel: '预标引擎',
-    vla: '采集台',
-    train: '训练核',
+    home: '驾驶舱',
+    analytics: '数据分析',
+    datasets: '数据资产',
+    annotate: '标注质控',
+    prelabel: '智能预标',
+    vla: '行为理解',
+    train: '训练评测',
+    // 兼容旧键
+    qc: '标注质控',
   },
   roles: {
     annotator: '标注员',
@@ -16,16 +20,16 @@ export const copy = {
     admin: '管理员',
   },
   terms: {
-    session: '会话',
-    keyframe: '关键帧',
-    actionClip: '动作片段',
+    session: '样本会话',
+    keyframe: '关键动作节点',
+    actionClip: '动作序列段',
   },
   home: {
-    title: '最近采集会话',
-    subtitle: '时间轴优先的具身数据采集工作台 — 点选会话进入关键帧与动作片段',
+    title: '数据智能驾驶舱',
+    subtitle: '画像 · 质量评分 · VLA 行为理解 · 多模型评测与数据-模型追溯',
   },
   empty: {
-    sessions: '还没有采集会话',
+    sessions: '暂无分析对象，请先导入数据集或创建采集任务',
     audit: '控制台暂无输出',
   },
 } as const

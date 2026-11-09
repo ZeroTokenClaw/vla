@@ -1,7 +1,6 @@
 <script setup>
 import { computed, h, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NIcon } from 'naive-ui'
 import { copy } from '@/i18n/copy'
 import RoleSwitch from '@/components/RoleSwitch.vue'
 import ConsoleStrip from '@/components/ConsoleStrip.vue'
@@ -14,18 +13,26 @@ const collapsed = ref(false)
 
 const menus = [
   { path: '/', label: copy.modules.home, iconText: '◎' },
-  { path: '/qc', label: copy.modules.qc, iconText: '▣' },
+  { path: '/analytics/profile', label: copy.modules.analytics, iconText: '▦' },
+  { path: '/datasets', label: copy.modules.datasets, iconText: '▣' },
+  { path: '/qc', label: copy.modules.annotate, iconText: '✎' },
   { path: '/prelabel', label: copy.modules.prelabel, iconText: '⚡' },
   { path: '/vla', label: copy.modules.vla, iconText: '▶' },
   { path: '/train', label: copy.modules.train, iconText: '◈' },
+  { path: '/eval/compare', label: '评测对比', iconText: '⇄' },
+  { path: '/lineage', label: '血缘追溯', iconText: '☍' },
 ]
 
 const active = computed(() => {
   const p = route.path
-  if (p.startsWith('/qc')) return '/qc'
+  if (p.startsWith('/analytics')) return '/analytics/profile'
+  if (p.startsWith('/datasets')) return '/datasets'
+  if (p.startsWith('/qc') || p.startsWith('/annotate')) return '/qc'
   if (p.startsWith('/prelabel')) return '/prelabel'
   if (p.startsWith('/vla')) return '/vla'
   if (p.startsWith('/train')) return '/train'
+  if (p.startsWith('/eval')) return '/eval/compare'
+  if (p.startsWith('/lineage')) return '/lineage'
   return '/'
 })
 
@@ -48,10 +55,10 @@ function onMenuUpdate(key) {
   <div class="lm-shell">
     <aside class="lm-rail" :class="{ collapsed }">
       <div class="lm-brand" @click="router.push('/')">
-        <div class="lm-mark">LM</div>
+        <div class="lm-mark">EI</div>
         <div v-if="!collapsed" class="lm-brand-text">
           <div class="lm-name">{{ copy.productShort }}</div>
-          <div class="lm-sub">VLA Studio</div>
+          <div class="lm-sub">Data Eval</div>
         </div>
       </div>
       <n-menu
@@ -119,36 +126,32 @@ function onMenuUpdate(key) {
   height: 36px;
   border-radius: 10px;
   background: linear-gradient(135deg, #18a058, #63e2b7);
-  color: #04140c;
+  color: #0b0b0f;
   font-weight: 800;
-  font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 16px #18a05866;
+  font-size: 13px;
 }
 .lm-name {
-  font-size: 14px;
   font-weight: 700;
-  color: #63e2b7;
+  font-size: 15px;
 }
 .lm-sub {
   font-size: 11px;
-  color: #6b6b76;
-  letter-spacing: 0.04em;
+  color: #8b8b9a;
 }
 .lm-rail-ico {
-  width: 18px;
-  display: inline-flex;
-  justify-content: center;
-  color: #63e2b7;
+  margin-right: 6px;
+  opacity: 0.85;
 }
 .lm-collapse {
-  margin-top: auto;
-  border: none;
-  background: transparent;
-  color: #6b6b76;
-  padding: 12px;
+  margin: auto 12px 12px;
+  border: 1px solid #2a2a36;
+  background: #1a1a22;
+  color: #c8c8d0;
+  border-radius: 6px;
+  padding: 6px;
   cursor: pointer;
 }
 .lm-main-col {
@@ -156,17 +159,15 @@ function onMenuUpdate(key) {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  max-height: 100vh;
 }
 .lm-top {
   height: 52px;
+  border-bottom: 1px solid #1f1f28;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 18px;
-  border-bottom: 1px solid #1f1f28;
-  background: #101016cc;
-  backdrop-filter: blur(8px);
+  padding: 0 16px;
+  background: #101016;
 }
 .lm-top-left,
 .lm-top-right {
@@ -175,16 +176,15 @@ function onMenuUpdate(key) {
   gap: 10px;
 }
 .lm-product {
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-weight: 600;
 }
 .lm-vendor {
+  color: #8b8b9a;
   font-size: 12px;
-  color: #6b6b76;
 }
 .lm-content {
   flex: 1;
+  padding: 16px;
   overflow: auto;
-  padding: 18px 20px 12px;
 }
 </style>

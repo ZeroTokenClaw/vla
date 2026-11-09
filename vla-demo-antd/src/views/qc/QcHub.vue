@@ -37,7 +37,7 @@ function onTabClick({ key }) {
       <a-menu-item v-for="t in tabs" :key="t.path">{{ t.label }}</a-menu-item>
     </a-menu>
 
-    <-view />
+    <router-view />
   </div>
 </template>
 

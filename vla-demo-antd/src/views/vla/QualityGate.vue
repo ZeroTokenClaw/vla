@@ -136,48 +136,69 @@ function mapTagColor(t) {
   return m[t] || t || 'default'
 }
 
+const beforeCount = computed(() => (task.value?.issues || []).length)
+const afterCount = computed(() => visibleIssues.value.length)
+const unqualifiedCount = computed(() => (task.value?.issues || []).filter((i) => i.unqualified).length)
+
+const detailIssue = ref(null)
+
 const ornTableCols1 = [
-  { title: 'col0', key: 'col0', width: 48 },
-  { title: '帧', key: 'frame', dataIndex: 'frame', width: 70 },
-  { title: '说明', key: 'message', dataIndex: 'message', width: 240 }
+  { title: '类型', key: 'type', width: 110 },
+  { title: '等级', key: 'severity', width: 90 },
+  { title: '帧', key: 'frame', width: 70 },
+  { title: '说明', dataIndex: 'message' },
+  { title: '证据分', key: 'score', width: 90 },
+  { title: '标记', key: 'flag', width: 90 },
+  { title: '详情', key: 'op', width: 80 },
 ]
 </script>
 
 <template>
-  <div :loading="loading" class="qg">
+  <div class="qg">
+    <a-alert
+      type="info"
+      show-icon
+      class="mb"
+      message="VLA 质检详情页：展示伪造检测证据分 / 检测器版本 / 处理前后数量变化。非真实 OpenCV 推理。"
+    />
     <div class="toolbar">
-      <a-select
-        :value="taskId"
-        placeholder="选择采集任务"
-        style="width: 280px"
-        @change="onSelectTask">
-        <a-select-option
-          v-for="t in taskList"
-          :key="t.id"
-          :value="t.id">{{ `${t.id} · ${t.name}` }}</a-select-option>
+      <a-select :value="taskId" placeholder="选择采集任务" style="width: 280px" @change="onSelectTask">
+        <a-select-option v-for="t in taskList" :key="t.id" :value="t.id">{{ `${t.id} · ${t.name}` }}</a-select-option>
       </a-select>
       <div class="spacer" />
       <a-button type="primary" :loading="detecting" @click="onDetect">一键检测</a-button>
       <a-button danger :disabled="!selected.length" @click="onMark">标记不合格</a-button>
       <span class="filter-lab">过滤不合格</span>
       <a-switch v-model:checked="filterOn" @change="onToggleFilter" />
-      <a-button @click="$.push('/vla/timeline/' + taskId)">返回时间轴</a-button>
+      <a-button @click="router.push('/vla/timeline/' + taskId)">返回时间轴</a-button>
     </div>
 
     <ProgressMock :running="detecting" label="检测抖动/遮挡/模糊/缺失/不匹配" :duration="1100" />
 
     <template v-if="task">
       <a-row :gutter="12" class="summary">
-        <a-col v-for="t in meta.issueTypes" :key="t.key" :span="4">
-          <a-card  class="sum-card">
+        <a-col v-for="t in meta.issueTypes" :key="t.key" :span="3">
+          <a-card class="sum-card" size="small">
             <div class="sum-label">{{ t.label }}</div>
             <div class="sum-num">{{ summary[t.key] || 0 }}</div>
           </a-card>
         </a-col>
-        <a-col :span="4">
-          <a-card  class="sum-card">
-            <div class="sum-label">可见样本</div>
-            <div class="sum-num">{{ visibleIssues.length }}</div>
+        <a-col :span="3">
+          <a-card class="sum-card" size="small">
+            <div class="sum-label">检出总数</div>
+            <div class="sum-num">{{ beforeCount }}</div>
+          </a-card>
+        </a-col>
+        <a-col :span="3">
+          <a-card class="sum-card" size="small">
+            <div class="sum-label">过滤后可见</div>
+            <div class="sum-num">{{ afterCount }}</div>
+          </a-card>
+        </a-col>
+        <a-col :span="3">
+          <a-card class="sum-card" size="small">
+            <div class="sum-label">已标不合格</div>
+            <div class="sum-num">{{ unqualifiedCount }}</div>
           </a-card>
         </a-col>
       </a-row>
@@ -188,16 +209,17 @@ const ornTableCols1 = [
             <span>质检问题列表 · {{ task.id }}</span>
             <a-tag v-if="task.issuesDetected" color="success" size="small">已检测</a-tag>
             <a-tag v-else color="default" size="small">未检测</a-tag>
+            <a-tag v-if="task.issuesDetected" color="blue">处理前 {{ beforeCount }} → 可见 {{ afterCount }}</a-tag>
           </div>
         </template>
 
         <a-alert
           v-if="!task.issuesDetected"
-          message="点击「一键检测」演示抖动、遮挡、模糊、数据缺失、样本与任务不匹配五类问题检出。"
+          message="点击「一键检测」演示五类问题检出与证据字段。"
           type="info"
-          :closable="false"
           show-icon
-          class="mb" />
+          class="mb"
+        />
 
         <a-table
           :data-source="visibleIssues"
@@ -208,28 +230,47 @@ const ornTableCols1 = [
           :row-selection="{ selectedRowKeys: selected, onChange: onSelectChange }"
         >
           <template #bodyCell="{ column, record }">
-      <template v-if="column.key === 'col0'">
-<a-tag size="small" :color="mapTagColor(issueTypeColor(record.type))">
-                {{ issueTypeLabel(record.type) }}
-              </a-tag>
-      </template>
-      <template v-if="column.key === 'frame'">
-<a-tag
-                size="small"
-                :color="mapTagColor(record.severity === 'high' ? 'danger' : record.severity === 'medium' ? 'warning' : 'info')">
+            <template v-if="column.key === 'type'">
+              <a-tag :color="mapTagColor(issueTypeColor(record.type))">{{ issueTypeLabel(record.type) }}</a-tag>
+            </template>
+            <template v-else-if="column.key === 'severity'">
+              <a-tag :color="mapTagColor(record.severity === 'high' ? 'danger' : record.severity === 'medium' ? 'warning' : 'info')">
                 {{ record.severity }}
               </a-tag>
-      </template>
-      <template v-if="column.key === 'message'">
-<a-tag v-if="record.unqualified" size="small" color="error">已标记</a-tag>
+            </template>
+            <template v-else-if="column.key === 'frame'">{{ record.frame ?? record.evidence?.frameStart ?? '—' }}</template>
+            <template v-else-if="column.key === 'score'">{{ record.evidence?.score ?? '—' }}</template>
+            <template v-else-if="column.key === 'flag'">
+              <a-tag v-if="record.unqualified" color="error">不合格</a-tag>
               <span v-else>—</span>
-      </template>
-  </template>
-</a-table>
+            </template>
+            <template v-else-if="column.key === 'op'">
+              <a-button type="link" size="small" @click="detailIssue = record">证据</a-button>
+            </template>
+          </template>
+        </a-table>
       </a-card>
     </template>
 
     <a-empty v-else description="请先创建采集任务" />
+
+    <a-drawer :open="!!detailIssue" title="检测证据详情" width="420" @close="detailIssue = null">
+      <template v-if="detailIssue">
+        <a-descriptions :column="1" bordered size="small">
+          <a-descriptions-item label="类型">{{ issueTypeLabel(detailIssue.type) }}</a-descriptions-item>
+          <a-descriptions-item label="等级">{{ detailIssue.severity }}</a-descriptions-item>
+          <a-descriptions-item label="说明">{{ detailIssue.message }}</a-descriptions-item>
+          <a-descriptions-item label="detector">{{ detailIssue.evidence?.detectorVersion }}</a-descriptions-item>
+          <a-descriptions-item label="score">{{ detailIssue.evidence?.score }}</a-descriptions-item>
+          <a-descriptions-item label="threshold">{{ detailIssue.evidence?.threshold }}</a-descriptions-item>
+          <a-descriptions-item label="帧区间">
+            {{ detailIssue.evidence?.frameStart }} – {{ detailIssue.evidence?.frameEnd }}
+          </a-descriptions-item>
+          <a-descriptions-item label="备注">{{ detailIssue.evidence?.note }}</a-descriptions-item>
+        </a-descriptions>
+        <pre class="ev">{{ JSON.stringify(detailIssue.evidence, null, 2) }}</pre>
+      </template>
+    </a-drawer>
   </div>
 </template>
 
@@ -272,5 +313,13 @@ const ornTableCols1 = [
 }
 .mb {
   margin-bottom: 12px;
+}
+.ev {
+  margin-top: 12px;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 12px;
 }
 </style>

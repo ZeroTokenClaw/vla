@@ -1,7 +1,8 @@
-<script setup>import { notification } from 'ant-design-vue'
-
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+<script setup>
+import { notification } from 'ant-design-vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import * as echarts from 'echarts'
 import ProgressMock from '@/components/ProgressMock.vue'
 import {
   listVlaTasks,
@@ -24,6 +25,8 @@ const currentFrame = ref(0)
 const exportVisible = ref(false)
 const lastExport = ref('')
 const meta = listMeta()
+const signalChartRef = ref(null)
+let signalChart = null
 
 const draft = reactive({
   id: '',
@@ -63,6 +66,35 @@ async function loadList() {
   taskList.value = (await listVlaTasks({ page: 1, pageSize: 200 })).items
 }
 
+function renderSignal() {
+  const sig = task.value?.signal
+  if (!signalChartRef.value || !sig?.claw?.length) {
+    signalChart?.clear()
+    return
+  }
+  if (!signalChart) signalChart = echarts.init(signalChartRef.value)
+  signalChart.setOption({
+    grid: { left: 40, right: 16, top: 32, bottom: 28 },
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['夹爪', '关节0'], top: 0 },
+    xAxis: {
+      type: 'category',
+      data: (sig.t || sig.claw.map((_, i) => i)).map(String),
+    },
+    yAxis: { type: 'value' },
+    series: [
+      { name: '夹爪', type: 'line', data: sig.claw, showSymbol: false, itemStyle: { color: '#13c2c2' } },
+      {
+        name: '关节0',
+        type: 'line',
+        data: (sig.dof || []).map((row) => (Array.isArray(row) ? row[0] : row)),
+        showSymbol: false,
+        itemStyle: { color: '#1677ff' },
+      },
+    ],
+  })
+}
+
 async function loadTask(id) {
   if (!id) return
   loading.value = true
@@ -75,6 +107,8 @@ async function loadTask(id) {
     draft.action = meta.actionTemplates[0]?.code || 'REACH'
     draft.instruction = ''
     draft.keyNode = true
+    await nextTick()
+    renderSignal()
   } catch (e) {
     notification.error({ message: e.message || '加载失败', placement: 'topRight' })
   } finally {
@@ -186,10 +220,25 @@ onMounted(async () => {
   }
 })
 
+onUnmounted(() => signalChart?.dispose())
+
 const ornTableCols1 = [
-  { title: '起始帧', key: 'startFrame', dataIndex: 'startFrame', width: 80 },
-  { title: '指令说明', key: 'instruction', dataIndex: 'instruction', width: 160 }
+  { title: '动作', dataIndex: 'actionLabel', width: 100 },
+  { title: '编码', dataIndex: 'action', width: 90 },
+  { title: '起始帧', dataIndex: 'startFrame', width: 80 },
+  { title: '结束帧', dataIndex: 'endFrame', width: 80 },
+  { title: '关键', key: 'keyNode', width: 70 },
+  { title: '指令说明', dataIndex: 'instruction', ellipsis: true },
+  { title: '操作', key: 'ops', width: 80 },
 ]
+
+const keyNodeProps = computed(() => {
+  if (!task.value) return null
+  const hit = task.value.actions.find(
+    (a) => a.keyNode && currentFrame.value >= a.startFrame && currentFrame.value <= a.endFrame,
+  )
+  return hit || null
+})
 </script>
 
 <template>
@@ -207,7 +256,9 @@ const ornTableCols1 = [
       </a-select>
       <div class="spacer" />
       <a-button type="success" @click="exportVisible = true">导出 JSON / Excel / CSV</a-button>
-      <a-button @click="$.push('/vla/quality/' + taskId)">去样本质检</a-button>
+      <a-button @click="router.push('/vla/quality/' + taskId)">去样本质检</a-button>
+      <a-button @click="router.push('/vla/action-analysis/' + taskId)">动作分析</a-button>
+      <a-button @click="router.push('/vla/consistency/' + taskId)">一致性</a-button>
     </div>
 
     <template v-if="task">
@@ -239,6 +290,38 @@ const ornTableCols1 = [
           </a-col>
         </a-row>
       </a-card>
+
+      <a-card size="small" class="head-card" title="多模态关联（伪造视图）">
+        <a-space wrap>
+          <a-tag color="blue">taskId={{ task.id }}</a-tag>
+          <a-tag color="cyan">instruction ↔ video</a-tag>
+          <a-tag color="cyan">video@f{{ currentFrame }} ↔ image</a-tag>
+          <a-tag color="cyan">action × {{ task.actions?.length || 0 }}</a-tag>
+          <a-tag color="cyan">keyNodes × {{ task.actions?.filter((a) => a.keyNode).length || 0 }}</a-tag>
+          <a-tag color="purple">via timestamp/frameIndex</a-tag>
+        </a-space>
+      </a-card>
+
+      <a-card v-if="keyNodeProps" size="small" class="head-card" title="关键节点属性面板">
+        <a-descriptions size="small" bordered :column="3">
+          <a-descriptions-item label="动作">{{ keyNodeProps.actionLabel || keyNodeProps.action }}</a-descriptions-item>
+          <a-descriptions-item label="编码">{{ keyNodeProps.action }}</a-descriptions-item>
+          <a-descriptions-item label="片段 ID">{{ keyNodeProps.id }}</a-descriptions-item>
+          <a-descriptions-item label="起止帧">F{{ keyNodeProps.startFrame }}–{{ keyNodeProps.endFrame }}</a-descriptions-item>
+          <a-descriptions-item label="当前帧">{{ currentFrame }}</a-descriptions-item>
+          <a-descriptions-item label="相对进度">
+            {{ Math.round(((currentFrame - keyNodeProps.startFrame) / Math.max(1, keyNodeProps.endFrame - keyNodeProps.startFrame)) * 100) }}%
+          </a-descriptions-item>
+          <a-descriptions-item label="指令片段" :span="3">{{ keyNodeProps.instruction || '—' }}</a-descriptions-item>
+        </a-descriptions>
+      </a-card>
+      <a-alert
+        v-else
+        type="warning"
+        show-icon
+        style="margin-bottom: 12px"
+        message="当前帧不在任何关键节点区间内，可拖动滑条或点击动作行定位关键帧。"
+      />
 
       <!-- 中：视频占位 + 帧滑条时间轴 -->
       <a-card  class="player-card">
@@ -343,25 +426,43 @@ const ornTableCols1 = [
                 <a-tag size="small">{{ task.actions.length }} 段</a-tag>
               </div>
             </template>
-            <a-table :data-source="task.actions" :columns="ornTableCols1" :pagination="false" row-key="id"
+            <a-table
+              :data-source="task.actions"
+              :columns="ornTableCols1"
+              :pagination="false"
+              row-key="id"
               size="small"
-              :custom-row="(record) => ({ onClick: () => onRowClick(record) })">
-  <template #bodyCell="{ column, record }">
-      <template v-if="column.key === 'startFrame'">
-<a-tag v-if="record.keyNode" size="small" color="error">关键</a-tag>
+              :custom-row="(record) => ({ onClick: () => onRowClick(record) })"
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'keyNode'">
+                  <a-tag v-if="record.keyNode" color="orange">关键</a-tag>
                   <span v-else>—</span>
-      </template>
-      <template v-if="column.key === 'instruction'">
-<a-button type="link" danger @click.stop="onDelete(record)">删除</a-button>
-      </template>
-  </template>
-</a-table>
+                </template>
+                <template v-else-if="column.key === 'ops'">
+                  <a-button type="link" danger size="small" @click.stop="onDelete(record)">删除</a-button>
+                </template>
+              </template>
+            </a-table>
           </a-card>
         </a-col>
       </a-row>
     </template>
 
-    <a-empty v-else description="请先在「采集配置」创建任务" />
+    <a-card
+      v-if="task?.signal?.claw?.length"
+      title="关节 / 夹爪信号（演示假曲线）"
+      size="small"
+      style="margin-top: 12px"
+    >
+      <div ref="signalChartRef" class="signal-chart" />
+      <p class="signal-tip">
+        质量要求：{{ task.qualityRequirement || '画面稳定、关键帧清晰' }} · 设备
+        {{ (task.deviceIds || []).join(', ') || '未绑定' }}
+      </p>
+    </a-card>
+
+    <a-empty v-if="!task" description="请先在「采集配置」创建任务" />
 
     <a-modal v-model:open="exportVisible" title="导出标注结果" width="480px">
       <p class="export-tip">
@@ -388,6 +489,14 @@ const ornTableCols1 = [
 }
 .spacer {
   flex: 1;
+}
+.signal-chart {
+  height: 220px;
+}
+.signal-tip {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #64748b;
 }
 .head-card,
 .player-card {

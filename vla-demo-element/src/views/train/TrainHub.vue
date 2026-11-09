@@ -20,6 +20,11 @@ const tabs = [
     label: '指标报表',
     match: (p) => p.startsWith('/train/metrics'),
   },
+  {
+    path: '/train/gpus',
+    label: '算力监控',
+    match: (p) => p.startsWith('/train/gpus'),
+  },
 ]
 
 const activeTab = computed(() => {

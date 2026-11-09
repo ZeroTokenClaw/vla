@@ -2,11 +2,11 @@ import { seedQcTasks, seedSamplePool } from './seed/qc'
 /** StarCompute QC mock: multimodal tickets, workflow, sample-check. */
 
 export const MODALITIES = [
-  { value: 'text_ner', label: '文本实体抽取', short: '文本NER' },
-  { value: 'seg', label: '图像语义分割', short: '图像分割' },
-  { value: 'audio_slice', label: '语音切片', short: '语音切片' },
-  { value: 'video_det', label: '视频目标检测', short: '视频检测' },
-  { value: 'point_seg', label: '点云分割', short: '点云分割' },
+  { value: 'text_ner', label: '巡检告警 NER', short: '多租户 · 告警单', hint: 'SITE / ALERT / ASSET' },
+  { value: 'seg', label: '卡口画面分割', short: '安防 RGB · Mask', hint: '行人 / 门禁 / 包裹' },
+  { value: 'audio_slice', label: '对讲电台切片', short: '调度语音 · 切片', hint: '呼叫号 / 确认码' },
+  { value: 'video_det', label: '路侧目标检测', short: '巡检视频 · Track', hint: '车 / 人 / 路障' },
+  { value: 'point_seg', label: '路缘 LiDAR 分割', short: 'Curb Sweep', hint: '路面 / 路缘 / 车辆' },
 ]
 
 export const STATUS_FLOW = [
@@ -51,75 +51,149 @@ export const TENANTS = [
   { value: 'tn-sc-03', label: '租户 tn-sc-03' },
 ]
 
-/** Sample media + annotation payloads per modality (desensitized). */
+/** Sample media — StarCompute 安防巡检 / 多租户域 */
 export const SAMPLE_RESOURCES = {
   text_ner: {
     id: 'res-text-01',
-    title: '客服工单原文-脱敏',
+    title: '巡检告警单 · tn-sc-02',
+    domain: 'security-ticket',
     text:
-      '用户张某于2026年10月28日致电反映：订单 SC-ORD-8821 物流延误，希望改派至上海市浦东新区张江路88号，联系电话138****6521。客服已登记并承诺48小时内回电。',
+      '租户 tn-sc-02 巡检告警：站点 SC-GATE-北门 于 2026-11-06 21:40 触发 ALERT-INTRUSION，关联资产 CAM-12B，值班员周凯已签收。',
     entities: [
-      { id: 'e1', text: '张某', type: 'PERSON', start: 2, end: 4 },
-      { id: 'e2', text: '2026年10月28日', type: 'DATE', start: 5, end: 16 },
-      { id: 'e3', text: 'SC-ORD-8821', type: 'ORDER_ID', start: 24, end: 35 },
-      { id: 'e4', text: '上海市浦东新区张江路88号', type: 'ADDRESS', start: 44, end: 58 },
-      { id: 'e5', text: '138****6521', type: 'PHONE', start: 63, end: 74 },
+      { id: 'e1', text: 'tn-sc-02', type: 'TENANT', start: 3, end: 11 },
+      { id: 'e2', text: 'SC-GATE-北门', type: 'SITE', start: 20, end: 30 },
+      { id: 'e3', text: '2026-11-06 21:40', type: 'TIMESTAMP', start: 33, end: 49 },
+      { id: 'e4', text: 'ALERT-INTRUSION', type: 'ALERT', start: 53, end: 68 },
+      { id: 'e5', text: 'CAM-12B', type: 'ASSET', start: 74, end: 81 },
+      { id: 'e6', text: '周凯', type: 'OPERATOR', start: 85, end: 87 },
     ],
-    labelSet: ['PERSON', 'DATE', 'ORDER_ID', 'ADDRESS', 'PHONE', 'ORG'],
+    relations: [
+      { id: 'r1', type: '归属租户', subj: 'e2', obj: 'e1' },
+      { id: 'r2', type: '触发告警', subj: 'e2', obj: 'e4' },
+      { id: 'r3', type: '关联资产', subj: 'e4', obj: 'e5' },
+    ],
+    labelSet: ['TENANT', 'SITE', 'TIMESTAMP', 'ALERT', 'ASSET', 'OPERATOR'],
+    relationTypes: ['归属租户', '触发告警', '关联资产', '值班签收'],
   },
   seg: {
     id: 'res-img-01',
-    title: '桌面抓取场景-语义分割',
-    imageUrl: '/samples/images/desk_seg.jpg',
+    title: '卡口画面分割 · 北门闸机',
+    domain: 'security-rgb',
+    imageUrl: '/samples/images/scene_05.jpg',
     masks: [
-      { id: 'm1', label: 'cup', color: '#1677ff', area: 0.12, conf: 0.93 },
-      { id: 'm2', label: 'plate', color: '#52c41a', area: 0.18, conf: 0.91 },
-      { id: 'm3', label: 'hand', color: '#fa8c16', area: 0.09, conf: 0.88 },
-      { id: 'm4', label: 'table', color: '#722ed1', area: 0.41, conf: 0.96 },
+      {
+        id: 'm1',
+        label: 'pedestrian',
+        color: '#4ade80',
+        area: 0.1,
+        conf: 0.92,
+        polygon: [
+          [0.3, 0.2],
+          [0.4, 0.18],
+          [0.42, 0.62],
+          [0.28, 0.64],
+        ],
+      },
+      {
+        id: 'm2',
+        label: 'gate',
+        color: '#c084fc',
+        area: 0.18,
+        conf: 0.9,
+        polygon: [
+          [0.5, 0.15],
+          [0.78, 0.12],
+          [0.8, 0.7],
+          [0.48, 0.72],
+        ],
+      },
+      {
+        id: 'm3',
+        label: 'package',
+        color: '#f87171',
+        area: 0.06,
+        conf: 0.86,
+        polygon: [
+          [0.12, 0.55],
+          [0.26, 0.54],
+          [0.27, 0.72],
+          [0.11, 0.73],
+        ],
+      },
+      {
+        id: 'm4',
+        label: 'road',
+        color: '#67e8f9',
+        area: 0.28,
+        conf: 0.95,
+        polygon: [
+          [0.02, 0.7],
+          [0.98, 0.68],
+          [0.99, 0.98],
+          [0.01, 0.99],
+        ],
+      },
     ],
-    labelSet: ['cup', 'plate', 'hand', 'table', 'background', 'tool'],
+    labelSet: ['pedestrian', 'gate', 'package', 'road', 'vehicle', 'other'],
   },
   audio_slice: {
     id: 'res-audio-01',
-    title: '指令语音-切片样例',
-    audioUrl: '/samples/audio/instruction.wav',
-    waveformUrl: '/samples/audio/instruction_wave.png',
-    durationSec: 4.7,
+    title: '调度对讲切片 · 北门频道',
+    domain: 'security-radio',
+    audioUrl: '/samples/audio/clip_03.wav',
+    waveformUrl: '/samples/audio/clip_03_wave.png',
+    durationSec: 1.3,
+    wavePeaks: Array.from({ length: 64 }, (_, i) => {
+      const t = i / 64
+      return Math.min(1, Math.abs(Math.sin(t * 22) * 0.6 + Math.sin(t * 5) * 0.3) + (t > 0.15 && t < 0.7 ? 0.2 : 0.04))
+    }),
     slices: [
-      { id: 's1', start: 0.2, end: 1.0, label: '唤醒词', text: '你好数联' },
-      { id: 's2', start: 1.1, end: 2.6, label: '任务指令', text: '请把红色杯子放到托盘上' },
-      { id: 's3', start: 2.7, end: 3.4, label: '确认', text: '是的，红色那个' },
-      { id: 's4', start: 3.6, end: 4.5, label: '结束语', text: '完成后来告诉我' },
+      { id: 's1', start: 0.05, end: 0.35, label: '呼叫号', text: '北门一号呼叫中心', speaker: 'SPK_GATE' },
+      { id: 's2', start: 0.4, end: 0.85, label: '告警描述', text: '可疑包裹滞留闸机外侧', speaker: 'SPK_GATE' },
+      { id: 's3', start: 0.9, end: 1.2, label: '确认码', text: '收到，派员核查', speaker: 'SPK_CMD' },
     ],
-    labelSet: ['唤醒词', '任务指令', '确认', '结束语', '噪声', '其他'],
+    labelSet: ['呼叫号', '告警描述', '确认码', '噪声', '其他'],
+    speakers: ['SPK_GATE', 'SPK_CMD', 'SPK_PATROL'],
   },
   video_det: {
     id: 'res-video-01',
-    title: '料箱分拣-目标检测',
-    posterUrl: '/samples/video/bin_pick_poster.jpg',
-    videoUrl: '/samples/video/bin_pick.mp4',
-    fps: 30,
-    frames: 180,
+    title: '路侧巡检检测 · EP-06',
+    domain: 'security-video',
+    posterUrl: '/samples/video/ep_06_poster.jpg',
+    videoUrl: '/samples/video/ep_06.mp4',
+    fps: 25,
+    frames: 120,
+    keyFrames: [10, 35, 70, 100],
     detections: [
-      { id: 'd1', frame: 12, label: 'box_A', x: 0.12, y: 0.2, w: 0.18, h: 0.22, conf: 0.91 },
-      { id: 'd2', frame: 45, label: 'gripper', x: 0.4, y: 0.35, w: 0.15, h: 0.2, conf: 0.87 },
-      { id: 'd3', frame: 90, label: 'box_B', x: 0.55, y: 0.28, w: 0.2, h: 0.25, conf: 0.9 },
-      { id: 'd4', frame: 140, label: 'conveyor', x: 0.05, y: 0.65, w: 0.9, h: 0.25, conf: 0.95 },
+      { id: 'd1', frame: 10, trackId: 'T-car', label: 'vehicle', x: 0.55, y: 0.35, w: 0.28, h: 0.22, conf: 0.94 },
+      { id: 'd1b', frame: 35, trackId: 'T-car', label: 'vehicle', x: 0.4, y: 0.38, w: 0.26, h: 0.21, conf: 0.92 },
+      { id: 'd2', frame: 35, trackId: 'T-ped', label: 'pedestrian', x: 0.18, y: 0.4, w: 0.08, h: 0.28, conf: 0.89 },
+      { id: 'd3', frame: 70, trackId: 'T-barrier', label: 'barrier', x: 0.62, y: 0.55, w: 0.2, h: 0.15, conf: 0.87 },
+      { id: 'd4', frame: 100, trackId: 'T-ped', label: 'pedestrian', x: 0.3, y: 0.42, w: 0.07, h: 0.26, conf: 0.9 },
     ],
-    labelSet: ['box_A', 'box_B', 'gripper', 'conveyor', 'person', 'other'],
+    labelSet: ['vehicle', 'pedestrian', 'barrier', 'package', 'other'],
   },
   point_seg: {
     id: 'res-pc-01',
-    title: '桌面点云分割预览',
-    previewUrl: '/samples/pointcloud/desk_pc.png',
-    points: 128460,
-    segments: [
-      { id: 'p1', label: 'table_plane', points: 62400, color: '#13c2c2' },
-      { id: 'p2', label: 'object_cup', points: 8420, color: '#1677ff' },
-      { id: 'p3', label: 'object_bottle', points: 12100, color: '#eb2f96' },
-      { id: 'p4', label: 'noise', points: 3180, color: '#8c8c8c' },
+    title: '路缘 LiDAR 扫描 · 北门外侧',
+    domain: 'security-lidar',
+    previewUrl: '/samples/pointcloud/curb_lidar.svg',
+    points: 210500,
+    clusters: [
+      { id: 'p1', label: 'road_plane', color: '#67e8f9', center: [0, -0.4, 0], spread: [1.0, 0.04, 0.8], count: 480 },
+      { id: 'p2', label: 'curb', color: '#c084fc', center: [-0.35, -0.15, 0.1], spread: [0.35, 0.06, 0.12], count: 120 },
+      { id: 'p3', label: 'vehicle', color: '#f87171', center: [0.4, 0.05, -0.1], spread: [0.22, 0.14, 0.18], count: 160 },
+      { id: 'p4', label: 'pedestrian', color: '#4ade80', center: [-0.55, 0.15, 0.2], spread: [0.06, 0.22, 0.06], count: 70 },
+      { id: 'p5', label: 'noise', color: '#94a3b8', center: [0.75, 0.45, -0.4], spread: [0.12, 0.12, 0.12], count: 35 },
     ],
-    labelSet: ['table_plane', 'object_cup', 'object_bottle', 'robot_arm', 'noise'],
+    segments: [
+      { id: 'p1', label: 'road_plane', points: 98000, color: '#67e8f9' },
+      { id: 'p2', label: 'curb', points: 22000, color: '#c084fc' },
+      { id: 'p3', label: 'vehicle', points: 34000, color: '#f87171' },
+      { id: 'p4', label: 'pedestrian', points: 8600, color: '#4ade80' },
+      { id: 'p5', label: 'noise', points: 4100, color: '#94a3b8' },
+    ],
+    labelSet: ['road_plane', 'curb', 'vehicle', 'pedestrian', 'noise'],
   },
 }
 
@@ -397,6 +471,16 @@ export const SPEC_SECTIONS = [
     id: 'spec-7',
     title: '7. 抽检与回流',
     body: '抽检不合格须填写驳回原因；返修后重新进入初审。合格样本写入回流库，供训练集引用。',
+  },
+  {
+    id: 'spec-8',
+    title: '8. 标签体系（Taxonomy）',
+    body: '文本：PERSON/DATE/ORDER_ID/ADDRESS/PHONE/ORG。视觉：box_A/box_B/gripper/conveyor/person。语音：唤醒词/任务指令/确认/结束语/噪声。点云：table_plane/object_*/robot_arm/noise。VLA：REACH/GRASP/LIFT/MOVE/PLACE/RETREAT。禁止自由造词，跨模态同义词须登记映射表。',
+  },
+  {
+    id: 'spec-9',
+    title: '9. 视频轨迹与多边形',
+    body: '同一物理目标跨帧复用 trackId；不规则目标可用 polygon，并保留外包 bbox。接触/释放关键帧必标。',
   },
 ]
 

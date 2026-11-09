@@ -10,6 +10,9 @@ import {
   getExperiment,
   startTrain,
   stopTrain,
+  pauseTrain,
+  resumeTrain,
+  retryTrain,
   tickEpoch,
   listMeta,
 } from '@/services/train'
@@ -146,6 +149,51 @@ async function onStop() {
   }
 }
 
+async function onPause() {
+  if (!exp.value || !isAdmin.value) return
+  acting.value = true
+  try {
+    stopTimer()
+    exp.value = await pauseTrain(exp.value.id)
+    ElMessage.warning('训练已暂停')
+    await loadList()
+  } catch (e) {
+    ElMessage.error(e.message || '暂停失败')
+  } finally {
+    acting.value = false
+  }
+}
+
+async function onResume() {
+  if (!exp.value || !isAdmin.value) return
+  acting.value = true
+  try {
+    exp.value = await resumeTrain(exp.value.id)
+    ElMessage.success('训练已恢复')
+    startTimer()
+    await loadList()
+  } catch (e) {
+    ElMessage.error(e.message || '恢复失败')
+  } finally {
+    acting.value = false
+  }
+}
+
+async function onRetry() {
+  if (!exp.value || !isAdmin.value) return
+  acting.value = true
+  try {
+    exp.value = await retryTrain(exp.value.id)
+    ElMessage.success('已重试（指标重置）')
+    startTimer()
+    await loadList()
+  } catch (e) {
+    ElMessage.error(e.message || '重试失败')
+  } finally {
+    acting.value = false
+  }
+}
+
 function goMetrics() {
   if (exp.value) router.push(`/train/metrics/${exp.value.id}`)
 }
@@ -204,19 +252,44 @@ async function toggleAugmentDisplay() {
                   type="primary"
                   size="small"
                   :loading="acting"
-                  :disabled="!isAdmin || exp.status === 'running'"
+                  :disabled="!isAdmin || exp.status === 'running' || exp.status === 'paused'"
                   @click="onStart"
                 >
-                  启动训练
+                  启动
+                </el-button>
+                <el-button
+                  size="small"
+                  :loading="acting"
+                  :disabled="!isAdmin || exp.status !== 'running'"
+                  @click="onPause"
+                >
+                  暂停
+                </el-button>
+                <el-button
+                  size="small"
+                  type="warning"
+                  :loading="acting"
+                  :disabled="!isAdmin || exp.status !== 'paused'"
+                  @click="onResume"
+                >
+                  恢复
                 </el-button>
                 <el-button
                   type="danger"
                   size="small"
                   :loading="acting"
-                  :disabled="!isAdmin || exp.status !== 'running'"
+                  :disabled="!isAdmin || !(exp.status === 'running' || exp.status === 'paused')"
                   @click="onStop"
                 >
                   停止
+                </el-button>
+                <el-button
+                  size="small"
+                  :loading="acting"
+                  :disabled="!isAdmin || !['stopped', 'failed', 'finished'].includes(exp.status)"
+                  @click="onRetry"
+                >
+                  重试
                 </el-button>
                 <el-button size="small" type="success" plain @click="goMetrics">查看指标</el-button>
               </div>
